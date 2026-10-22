@@ -1,6 +1,6 @@
 """One collector run: fetch → parse → delta → write, with a machine-readable run summary.
 
-The same function is called by the CLI (local), by the Azure Function (phase 1) and by tests.
+The same function is called by the CLI (local), by the Azure Function and by tests.
 """
 
 from __future__ import annotations
@@ -17,7 +17,8 @@ from transitpulse.delta import DeltaStore
 from transitpulse.feeds import Feed
 from transitpulse.gtfsrt.fetch import FetchResult, fetch
 from transitpulse.gtfsrt.parse import parse_feed
-from transitpulse.storage import write_rows
+from transitpulse.lake import Lake
+from transitpulse.storage import partition_key, rows_to_parquet
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class RunSummary:
     mode: Mode
     started_at: str
     status: str  # ok | not_modified | error
+    lake: str = ""
     http_status: int = 0
     fetch_ms: float = 0.0
     bytes: int = 0
@@ -43,6 +45,8 @@ class RunSummary:
     n_alerts: int = 0
     n_trips_gone: int = 0
     reduction: float = 0.0
+    bytes_written: int = 0
+    state_bytes: int = 0
     files: list[str] | None = None
     error: str | None = None
     total_ms: float = 0.0
@@ -52,6 +56,7 @@ def run_once(
     feed: Feed,
     settings: Settings,
     *,
+    lake: Lake | None = None,
     mode: Mode = "delta",
     body: bytes | None = None,
     now: datetime | None = None,
@@ -68,9 +73,13 @@ def run_once(
         status="ok",
         files=[],
     )
-    state_path = settings.state_dir / f"{feed.name}.json"
-    store = DeltaStore.load(state_path)
     try:
+        lk = lake or settings.lake()
+        summary.lake = lk.describe()
+        with tplog.Timed(log, "load_state") as t:
+            store = DeltaStore.load(lk, feed.name)
+            t.fields.update(tracked=len(store.fingerprints))
+
         with tplog.Timed(log, "fetch") as t:
             if body is None:
                 res = fetch(
@@ -111,20 +120,21 @@ def run_once(
             rows, gone = parsed.stop_times, []
 
         with tplog.Timed(log, "write") as t:
-            root = settings.data_dir
             for dataset, data in (
                 ("stop_times", rows),
                 ("alerts", parsed.alerts),
                 ("trips_gone", gone),
             ):
-                p = write_rows(
-                    data, root=root, dataset=dataset, feed=feed.name, feed_ts=parsed.feed_ts
-                )
-                if p:
-                    summary.files.append(str(p))  # type: ignore[union-attr]
+                if not data:
+                    continue
+                key = partition_key(dataset, feed.name, parsed.feed_ts)
+                blob = rows_to_parquet(data, dataset)
+                lk.put(key, blob)
+                summary.bytes_written += len(blob)
+                summary.files.append(key)  # type: ignore[union-attr]
             summary.n_written_stop_times, summary.n_trips_gone = len(rows), len(gone)
-            t.fields.update(files=len(summary.files or []))
-        store.save(state_path)
+            summary.state_bytes = store.save(lk, feed.name)
+            t.fields.update(files=len(summary.files or []), bytes_written=summary.bytes_written)
         return summary
     except Exception as e:  # the Function must log and continue; the summary carries the error
         summary.status, summary.error = "error", f"{type(e).__name__}: {e}"

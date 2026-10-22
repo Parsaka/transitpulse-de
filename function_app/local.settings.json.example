@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "TP_SCHEDULE": "0 * * * * *",
+    "TP_FEEDS": "vbb",
+    "TP_LAKE_BACKEND": "local",
+    "TP_DATA_DIR": "/tmp/transitpulse",
+    "TP_LOG_FORMAT": "json",
+    "TP_USER_AGENT": "transitpulse-de/0.1 (portfolio project; your-email@example.com)"
+  }
+}

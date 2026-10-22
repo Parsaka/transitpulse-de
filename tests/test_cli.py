@@ -28,7 +28,6 @@ def test_inspect_fixture() -> None:
 @respx.mock
 def test_collect_once_against_mocked_feed(tmp_path: Path, vbb_pb: bytes, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("TP_DATA_DIR", str(tmp_path / "d"))
-    monkeypatch.setenv("TP_STATE_DIR", str(tmp_path / "s"))
     monkeypatch.setenv("TP_LOG_FORMAT", "json")
     respx.get(FEEDS["vbb"].url).mock(return_value=httpx.Response(200, content=vbb_pb))
     r = runner.invoke(app, ["collect", "--feed", "vbb", "--once"])

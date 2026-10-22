@@ -18,3 +18,5 @@ htmlcov/
 backend.hcl
 terraform.tfvars
 .databricks/
+infra/tfplan
+infra/*.txt
