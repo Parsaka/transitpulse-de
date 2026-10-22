@@ -54,3 +54,11 @@ resource "azurerm_role_assignment" "github_kv_reader" {
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azuread_service_principal.github.object_id
 }
+
+# Reading its own role assignment on the state account (outside the resource group) needs Reader
+# there; without it the CI plan fails with 403 on azurerm_role_assignment.github_tfstate.
+resource "azurerm_role_assignment" "github_tfstate_reader" {
+  scope                = var.tfstate_storage_account_id
+  role_definition_name = "Reader"
+  principal_id         = azuread_service_principal.github.object_id
+}
