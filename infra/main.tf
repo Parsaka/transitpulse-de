@@ -165,20 +165,27 @@ resource "azurerm_linux_function_app" "collector" {
 
   app_settings = {
     SCM_DO_BUILD_DURING_DEPLOYMENT = "false"
-    ENABLE_ORYX_BUILD              = "false"
-    TP_SCHEDULE                    = var.schedule
-    TP_FEEDS                       = var.feeds
-    TP_LAKE_BACKEND                = "azure"
-    TP_ADLS_ACCOUNT_URL            = azurerm_storage_account.lake.primary_blob_endpoint
-    TP_LAKE_CONTAINER              = azurerm_storage_data_lake_gen2_filesystem.lake.name
-    TP_LOG_FORMAT                  = "json"
-    TP_USER_AGENT                  = var.user_agent
-    TP_ALERT_WEBHOOK               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.alert_webhook.versionless_id})"
+    # The worker bundles protobuf 5.x and would shadow ours (gtfs-realtime-bindings 3.x is generated
+    # with protobuf 7.x): without isolation the import fails and the host silently indexes 0 functions.
+    PYTHON_ISOLATE_WORKER_DEPENDENCIES = "1"
+    ENABLE_ORYX_BUILD                  = "false"
+    TP_SCHEDULE                        = var.schedule
+    TP_FEEDS                           = var.feeds
+    TP_LAKE_BACKEND                    = "azure"
+    TP_ADLS_ACCOUNT_URL                = azurerm_storage_account.lake.primary_blob_endpoint
+    TP_LAKE_CONTAINER                  = azurerm_storage_data_lake_gen2_filesystem.lake.name
+    TP_LOG_FORMAT                      = "json"
+    TP_USER_AGENT                      = var.user_agent
+    TP_ALERT_WEBHOOK                   = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.alert_webhook.versionless_id})"
   }
 
   lifecycle {
     # Set by the deploy workflow (zip deploy), not by Terraform.
-    ignore_changes = [app_settings["WEBSITE_RUN_FROM_PACKAGE"], tags["hidden-link: /app-insights-resource-id"]]
+    ignore_changes = [
+      app_settings["WEBSITE_RUN_FROM_PACKAGE"],
+      app_settings["WEBSITE_ENABLE_SYNC_UPDATE_SITE"],
+      tags["hidden-link: /app-insights-resource-id"],
+    ]
   }
 }
 

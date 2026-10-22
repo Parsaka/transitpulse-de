@@ -20,3 +20,4 @@ terraform.tfvars
 .databricks/
 infra/tfplan
 infra/*.txt
+.smoke/

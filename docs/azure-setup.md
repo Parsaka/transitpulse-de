@@ -40,6 +40,20 @@ account that holds the Terraform state itself.
   argument: `az role assignment create --scope` failed with `MissingSubscription` and a GitHub
   variable was stored mangled. `export MSYS_NO_PATHCONV=1` before such commands.
 - The whole stack applied on the first try (27 resources, about 4 minutes); re-plan: no changes.
+- **Deployed but zero functions, no error anywhere.** The host indexed nothing and Application
+  Insights stayed empty. Running the deployed zip in `mcr.microsoft.com/azure-functions/python:4-python3.11`
+  with `AzureFunctionsJobHost__Logging__Console__IsEnabled=true` reproduced it in a minute and the
+  worker's own Python showed the cause: the worker bundles protobuf 5.29 and shadows ours, while
+  `gtfs-realtime-bindings` 3.0 is generated with protobuf 7.34 (`VersionError`). Fix: app setting
+  `PYTHON_ISOLATE_WORKER_DEPENDENCIES=1` (now in Terraform).
+- **Then every execution failed in 25 ms**: `GLIBC_2.33 not found` for `cryptography`. The wheels
+  were resolved on the GitHub runner (Ubuntu 24.04) but the Consumption host is Debian 11 (glibc
+  2.31). Fix: the deploy workflow installs the dependencies inside the Functions image. The same
+  build runs in `scripts/smoke_function.sh`, which starts the package in that image with Azurite
+  and a fixture feed and fails unless `collect` is indexed and executes; it runs in CI on every
+  PR that touches the Function.
+- App Insights queries through `az monitor app-insights query` returned nothing while the data was
+  already in the workspace: query Log Analytics (`AppTraces`, `AppExceptions`, `AppRequests`) instead.
 
 ## GitHub repository variables
 | Variable | Value |

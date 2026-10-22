@@ -29,7 +29,7 @@ def collect_all(feeds: str) -> list[RunSummary]:
     lake = settings.lake()
     summaries = []
     for name in [f.strip() for f in feeds.split(",") if f.strip()]:
-        summaries.append(run_once(get_feed(name), settings, lake=lake))
+        summaries.append(run_once(get_feed(name, settings.feed_urls), settings, lake=lake))
     return summaries
 
 
