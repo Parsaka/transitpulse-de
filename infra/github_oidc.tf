@@ -10,11 +10,22 @@ resource "azuread_service_principal" "github" {
 }
 
 locals {
-  github_subjects = {
-    main         = "repo:${var.github_repository}:ref:refs/heads/main"
-    pull_request = "repo:${var.github_repository}:pull_request"
-    env_azure    = "repo:${var.github_repository}:environment:azure"
+  # GitHub presents the subject with owner and repository IDs embedded for repositories created
+  # after mid-2026 ("repo:Parsaka@115464667/transitpulse-de@1430309278:pull_request"); older
+  # repositories still send the plain form. Both are registered.
+  github_owner      = split("/", var.github_repository)[0]
+  github_name       = split("/", var.github_repository)[1]
+  github_repo_plain = "repo:${var.github_repository}"
+  github_repo_ids   = "repo:${local.github_owner}@${var.github_owner_id}/${local.github_name}@${var.github_repository_id}"
+  github_claim_tails = {
+    main         = "ref:refs/heads/main"
+    pull_request = "pull_request"
+    env_azure    = "environment:azure"
   }
+  github_subjects = merge(
+    { for k, v in local.github_claim_tails : "${k}-plain" => "${local.github_repo_plain}:${v}" },
+    { for k, v in local.github_claim_tails : "${k}-ids" => "${local.github_repo_ids}:${v}" },
+  )
 }
 
 resource "azuread_application_federated_identity_credential" "github" {

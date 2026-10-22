@@ -29,7 +29,17 @@ account that holds the Terraform state itself.
 | Key Vault (RBAC) with secret `alert-webhook` | chat webhook, read by the Function through a Key Vault reference | fractions of a cent |
 | Action group (email) + scheduled-query alert `collector-unhealthy` | no successful run in 15 min, or 3+ failures | about 0.50 USD per month |
 | Budget `budget-transitpulse-dev` | 2 per month, alerts at 50/90/100 percent | free |
-| Entra app `github-transitpulse-dev` + 3 federated credentials | GitHub Actions log in with OIDC (main, pull requests, environment `azure`) | free |
+| Entra app `github-transitpulse-dev` + 6 federated credentials | GitHub Actions log in with OIDC (main, pull requests, environment `azure`; each in the plain subject form and in the newer form with owner and repository IDs, which this repository uses) | free |
+
+## Lessons from doing it (2026-10-22)
+- **OIDC subject with IDs:** the first plan from a pull request failed with `AADSTS700213` because
+  GitHub presented `repo:Parsaka@115464667/transitpulse-de@1430309278:pull_request`, not
+  `repo:Parsaka/transitpulse-de:pull_request`. New repositories get the ID form; Terraform now
+  registers both (`github_owner_id`, `github_repository_id`).
+- **Git Bash rewrites `/subscriptions/...`** into `C:/Program Files/Git/subscriptions/...` in any
+  argument: `az role assignment create --scope` failed with `MissingSubscription` and a GitHub
+  variable was stored mangled. `export MSYS_NO_PATHCONV=1` before such commands.
+- The whole stack applied on the first try (27 resources, about 4 minutes); re-plan: no changes.
 
 ## GitHub repository variables
 | Variable | Value |

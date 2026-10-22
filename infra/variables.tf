@@ -83,3 +83,15 @@ variable "user_agent" {
   default     = "transitpulse-de/0.1 (portfolio project; https://github.com/Parsaka/transitpulse-de)"
   description = "Sent to the feed providers, who ask for an informative User-Agent."
 }
+
+variable "github_owner_id" {
+  type        = number
+  default     = 115464667
+  description = "Numeric GitHub owner ID (gh api repos/<owner>/<name> --jq .owner.id); part of the OIDC subject."
+}
+
+variable "github_repository_id" {
+  type        = number
+  default     = 1430309278
+  description = "Numeric GitHub repository ID (gh api repos/<owner>/<name> --jq .id); part of the OIDC subject."
+}
