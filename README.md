@@ -24,7 +24,17 @@ about production until the roadmap marks it done.
 | VBB | 6.3 MB | 6,455 | 124,193 | 0.9 s |
 | gtfs.de (nationwide) | 8.3 MB | 24,957 (+374 alerts) | 191,398 | 1.0 s |
 
-Delta reduction, storage per day and polling trade-offs are measured in phase 6, not estimated.
+Three consecutive live polls of VBB, 60 s apart, delta mode (same laptop, 2026-10-22 21:51 UTC):
+
+| Poll | Stop-time updates in feed | Rows written | Parquet size | Trips gone | Run time |
+|---|---|---|---|---|---|
+| 1 (cold store) | 122,775 | 122,775 | 688 KB | 0 | 5.7 s |
+| 2 | 122,581 | 793 (0.65%) | 15 KB | 29 | 3.6 s |
+| 3 | 122,981 | 1,391 (1.13%) | 24 KB | 22 | 5.0 s |
+
+The delta store suppressed about 99% of the rows. Open issue carried into phase 1: the state file
+(fingerprints for 123k stop-time updates as JSON) is 11.7 MB; the Azure Function will need a
+compact encoding. Storage per day and polling trade-offs are measured in phase 6, not estimated.
 
 ## Plan
 See [docs/roadmap.md](docs/roadmap.md) (phases), [docs/adr/0001-free-tier-architecture.md](docs/adr/0001-free-tier-architecture.md)
