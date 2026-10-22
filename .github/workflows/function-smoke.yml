@@ -23,4 +23,4 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: scripts/smoke_function.sh
+      - run: bash scripts/smoke_function.sh
