@@ -1,0 +1,8 @@
+subscription_id            = "00000000-0000-0000-0000-000000000000"
+alert_email                = "you@example.com"
+admin_principal_id         = "object id from: az ad signed-in-user show --query id -o tsv"
+tfstate_storage_account_id = "/subscriptions/.../resourceGroups/rg-transitpulse-tfstate/providers/Microsoft.Storage/storageAccounts/<name>"
+budget_start_date          = "2026-11-01T00:00:00Z"
+# location  = "swedencentral"
+# schedule  = "0 * * * * *"
+# feeds     = "vbb"

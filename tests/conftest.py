@@ -22,7 +22,7 @@ def gtfsde_pb() -> bytes:
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(data_dir=tmp_path / "data", state_dir=tmp_path / "state", user_agent="tests")
+    return Settings(data_dir=tmp_path / "data", user_agent="tests")
 
 
 def next_snapshot(

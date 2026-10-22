@@ -1,0 +1,56 @@
+name: Deploy collector (Azure Function)
+
+# Builds the package on the runner (same Python as the Function) and zip-deploys it.
+# Inactive until the repository variables AZURE_CLIENT_ID and FUNCTION_APP_NAME exist.
+# Authentication is OIDC: no Azure secret is stored in GitHub.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "function_app/**"
+      - "pyproject.toml"
+      - ".github/workflows/deploy-function.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-function
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ vars.AZURE_CLIENT_ID != '' && vars.FUNCTION_APP_NAME != '' }}
+    runs-on: ubuntu-latest
+    environment: azure
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build the deployment package (dependencies + transitpulse)
+        run: |
+          pip install --upgrade pip
+          pip install --target function_app/.python_packages/lib/site-packages \
+            -r function_app/requirements.txt ".[azure]"
+          du -sh function_app/.python_packages
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.FUNCTION_APP_NAME }}
+          package: function_app
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
+          remote-build: false
+      - name: Smoke check (function listed, app running)
+        run: |
+          az functionapp show -n "${{ vars.FUNCTION_APP_NAME }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" --query "{state:state,runtime:siteConfig.linuxFxVersion}" -o json
+          az functionapp function list -n "${{ vars.FUNCTION_APP_NAME }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" --query "[].name" -o tsv

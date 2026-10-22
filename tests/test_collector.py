@@ -21,6 +21,7 @@ def _files(root: Path, dataset: str) -> list[Path]:
 def test_first_run_writes_all_rows(settings: Settings, vbb_pb: bytes) -> None:
     s = run_once(get_feed("vbb"), settings, body=vbb_pb)
     assert s.status == "ok" and s.error is None
+    assert s.lake.startswith("local:")
     assert s.n_written_stop_times == s.n_stop_times > 0
     files = _files(settings.data_dir, "stop_times")
     assert len(files) == 1
@@ -29,10 +30,12 @@ def test_first_run_writes_all_rows(settings: Settings, vbb_pb: bytes) -> None:
         and "feed=vbb" in str(files[0])
         and "date=" in str(files[0])
     )
+    assert s.files == [str(files[0].relative_to(settings.data_dir)).replace("\\", "/")]
     t = pq.read_table(files[0])
     assert t.num_rows == s.n_stop_times
     assert str(t.schema.field("feed_ts").type) == "timestamp[us, tz=UTC]"
-    assert (settings.state_dir / "vbb.json").exists()
+    assert (settings.data_dir / "state" / "vbb.parquet").exists()
+    assert s.state_bytes > 0 and s.bytes_written == files[0].stat().st_size
 
 
 def test_rerun_same_snapshot_is_idempotent(settings: Settings, vbb_pb: bytes) -> None:
@@ -75,6 +78,19 @@ def test_bad_body_is_reported_not_raised(settings: Settings) -> None:
     assert _files(settings.data_dir, "stop_times") == []
 
 
+def test_explicit_lake_overrides_settings(
+    settings: Settings, vbb_pb: bytes, tmp_path: Path
+) -> None:
+    from transitpulse.lake import LocalLake
+
+    other = LocalLake(tmp_path / "elsewhere")
+    s = run_once(get_feed("vbb"), settings, lake=other, body=vbb_pb)
+    assert s.status == "ok"
+    assert _files(tmp_path / "elsewhere", "stop_times") and not _files(
+        settings.data_dir, "stop_times"
+    )
+
+
 def test_json_log_carries_run_id_and_summary(
     settings: Settings, vbb_pb: bytes, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -87,7 +103,7 @@ def test_json_log_carries_run_id_and_summary(
         json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")
     ]
     steps = [line["step"] for line in lines if "step" in line]
-    assert steps == ["fetch", "parse", "delta", "write"]
+    assert steps == ["load_state", "fetch", "parse", "delta", "write"]
     assert all(line.get("run_id") and line.get("feed") == "vbb" for line in lines)
     summary = next(line["summary"] for line in lines if "summary" in line)
     assert summary["status"] == "ok" and summary["n_written_stop_times"] > 0

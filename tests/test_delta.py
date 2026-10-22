@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from conftest import next_snapshot
-from transitpulse.delta import DeltaStore, fingerprint, row_key
+from transitpulse.delta import DeltaStore, fingerprint, row_key, state_key
 from transitpulse.gtfsrt.parse import parse_feed
+from transitpulse.lake import LocalLake
 
 
 def test_first_snapshot_is_all_changes(vbb_pb: bytes) -> None:
@@ -53,22 +54,35 @@ def test_feeds_do_not_interfere(vbb_pb: bytes, gtfsde_pb: bytes) -> None:
     assert d.gone == [], "trips of another feed must not be reported gone"
 
 
-def test_store_roundtrip(tmp_path: Path, vbb_pb: bytes) -> None:
+def test_store_roundtrip_through_lake(tmp_path: Path, vbb_pb: bytes) -> None:
     p = parse_feed(vbb_pb, "vbb")
     store = DeltaStore()
     store.apply(p.stop_times, p.feed_ts, feed="vbb")
     store.etags["vbb"] = '"abc"'
-    path = tmp_path / "s.json"
-    store.save(path)
-    again = DeltaStore.load(path)
+    lake = LocalLake(tmp_path)
+    n = store.save(lake, "vbb")
+    assert n > 0 and (tmp_path / "state" / "vbb.parquet").stat().st_size == n
+    again = DeltaStore.load(lake, "vbb")
     assert again.fingerprints == store.fingerprints
     assert again.trips == store.trips
     assert again.etags == {"vbb": '"abc"'}
-    assert not path.with_suffix(".json.tmp").exists()
+    assert not (tmp_path / "state" / "vbb.parquet.tmp").exists()
+    assert DeltaStore.load(lake, "missing").fingerprints == {}
+    assert state_key("vbb") == "state/vbb.parquet"
 
 
-def test_fingerprint_ignores_feed_timestamp() -> None:
+def test_state_is_compact(vbb_pb: bytes) -> None:
+    p = parse_feed(vbb_pb, "vbb")
+    store = DeltaStore()
+    store.apply(p.stop_times, p.feed_ts, feed="vbb")
+    per_row = len(store.to_bytes()) / len(store.fingerprints)
+    assert per_row < 40, f"{per_row:.1f} bytes per tracked stop-time update"
+
+
+def test_fingerprint_is_a_short_hash_and_ignores_feed_timestamp() -> None:
     r1 = {"trip_id": "t", "stop_sequence": 1, "arrival_delay_s": 10, "feed_ts": "a"}
     r2 = {**r1, "feed_ts": "b"}
-    assert fingerprint(r1) == fingerprint(r2)
+    r3 = {**r1, "arrival_delay_s": 11}
+    assert fingerprint(r1) == fingerprint(r2) != fingerprint(r3)
+    assert len(fingerprint(r1)) == 16
     assert row_key(r1) == "t||1"
