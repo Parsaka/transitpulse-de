@@ -63,7 +63,11 @@ jobs:
           -backend-config="container_name=tfstate"
           -backend-config="key=transitpulse-dev.tfstate"
           -backend-config="use_azuread_auth=true"
-      - run: terraform plan -input=false -lock=false -no-color -out=tfplan | tail -n 60
+      - name: terraform plan (fails the job on any error; summary in the step log)
+        run: |
+          set -o pipefail
+          terraform plan -input=false -lock=false -no-color -out=tfplan > plan.txt
+          grep -E '^(Plan:|No changes)' plan.txt || (cat plan.txt; exit 1)
       - uses: actions/upload-artifact@v4
         with:
           name: tfplan

@@ -13,22 +13,27 @@
 | collector-unhealthy | no successful `collect` execution in 15 min, or 3+ failures | Query below; check the feed provider status page (VBB posts outages on its Atom feed) |
 | budget 50/90/100 % | spend in the resource group | Cost analysis blade; the usual suspect is log ingestion above the free 5 GB |
 
-Useful queries (Application Insights, Logs):
+Useful queries (Log Analytics workspace `log-transitpulse-dev`; the Application Insights blade may lag):
 ```kusto
 // last run summaries
-traces | where message startswith "{" | extend d = parse_json(message)
-| where isnotempty(d.summary) | project timestamp, s = d.summary
-| project timestamp, status = s.status, feed = s.feed, http = s.http_status, rows = s.n_written_stop_times,
+AppTraces | where Message startswith "{" | extend d = parse_json(Message)
+| where isnotempty(d.summary) | extend s = d.summary
+| project TimeGenerated, status = s.status, feed = s.feed, http = s.http_status, rows = s.n_written_stop_times,
           gone = s.n_trips_gone, reduction = s.reduction, ms = s.total_ms, err = s.error
-| order by timestamp desc | take 20
+| order by TimeGenerated desc | take 20
 
 // executions and failures per 15 min
-requests | where name == "collect" | summarize ok = countif(success), failed = countif(not success) by bin(timestamp, 15m)
+AppRequests | where Name == "collect" | summarize ok = countif(Success), failed = countif(not Success) by bin(TimeGenerated, 15m)
+
+// the Python error of a failed execution
+AppExceptions | order by TimeGenerated desc | take 1 | project TimeGenerated, InnermostMessage
 ```
 
 ## Common failures
 | Symptom | Cause | Fix |
 |---|---|---|
+| deployed, `az functionapp function list` empty, nothing in logs | the Python worker could not import `function_app.py` (dependency clash, missing module) | run `scripts/smoke_function.sh`; it prints the worker's Python error |
+| executions fail in a few ms with `ImportError ... GLIBC` | wheels built on a newer glibc than the host image | build inside the Functions image (deploy workflow does) |
 | `FeedFetchError: ... HTTP 404/403` | provider changed the URL or blocked the User-Agent | check `docs/data-sources.md`, update `feeds.py`, redeploy |
 | `AuthorizationPermissionMismatch` writing the lake | role assignment missing or not yet propagated | `terraform apply`; wait up to 10 min |
 | runs succeed but `n_written_stop_times` is 0 for a long time | feed frozen upstream (header timestamp not advancing: `feed_age_s` grows) | nothing to fix locally; note it in the data log |

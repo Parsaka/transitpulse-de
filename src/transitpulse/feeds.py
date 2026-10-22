@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -32,8 +32,12 @@ FEEDS: dict[str, Feed] = {
 }
 
 
-def get_feed(name: str) -> Feed:
+def get_feed(name: str, url_overrides: dict[str, str] | None = None) -> Feed:
+    """Return the feed; ``url_overrides`` (``TP_FEED_URLS``) replaces its URL for replay/tests."""
     try:
-        return FEEDS[name]
+        feed = FEEDS[name]
     except KeyError as e:
         raise ValueError(f"unknown feed {name!r}; known: {sorted(FEEDS)}") from e
+    if url_overrides and name in url_overrides:
+        return replace(feed, url=url_overrides[name])
+    return feed

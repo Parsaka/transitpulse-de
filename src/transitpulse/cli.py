@@ -40,8 +40,8 @@ def collect(
     mode: str = typer.Option("delta", help="delta | snapshot"),
 ) -> None:
     """Poll a GTFS-RT feed and write Parquet deltas to TP_DATA_DIR."""
-    f = get_feed(feed)
     s = get_settings()
+    f = get_feed(feed, s.feed_urls)
     if interval < f.min_interval_s:
         raise typer.BadParameter(f"{feed} must not be polled faster than every {f.min_interval_s}s")
     n = 0

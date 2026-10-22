@@ -32,11 +32,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Build the deployment package (dependencies + transitpulse)
+      - name: Build the deployment package inside the Functions image
+        # Same Python and glibc as the Linux Consumption host (Debian 11, glibc 2.31). Resolving
+        # the wheels on the runner itself picked manylinux_2_34 builds that failed to load in Azure.
         run: |
-          pip install --upgrade pip
-          pip install --target function_app/.python_packages/lib/site-packages \
-            -r function_app/requirements.txt ".[azure]"
+          pip wheel --no-deps -w dist .
+          WHEEL=$(ls dist/transitpulse-*.whl)
+          docker run --rm -v "$PWD:/src" -w /src mcr.microsoft.com/azure-functions/python:4-python3.11 bash -c \
+            "pip install -q --no-cache-dir --target function_app/.python_packages/lib/site-packages \
+               -r function_app/requirements.txt 'transitpulse[azure] @ file:///src/$WHEEL' \
+             && chown -R $(id -u):$(id -g) function_app/.python_packages"
           du -sh function_app/.python_packages
       - uses: azure/login@v2
         with:

@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     log_format: Literal["json", "text"] = "text"
     alert_webhook: str = ""
     http_timeout_s: float = 20.0
+    # {"vbb": "http://host/vbb_sample.pb"}: replay a saved feed or point a smoke test at a fixture
+    feed_urls: dict[str, str] = {}
     http_retries: int = 3
 
     def lake(self) -> Lake:
