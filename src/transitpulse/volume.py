@@ -8,6 +8,7 @@ Azure lake stays the system of record and the only place the delta state lives.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 from urllib.parse import quote
 
@@ -70,14 +71,23 @@ class MultiLake:
         self.primary, self.sinks = primary, list(sinks)
 
     def put(self, key: str, data: bytes) -> None:
-        self.primary.put(key, data)
-        for s in self.sinks:
-            try:
-                s.put(key, data)
-            except Exception:
-                # The primary write is done and the state is consistent; a failed secondary sink
-                # is logged (and alerted on through the error count) but must not fail the run.
-                log.exception("secondary sink failed", extra={"sink": s.describe(), "key": key})
+        """Write the primary and every sink at the same time (network-bound, so threads help).
+
+        The primary write must succeed (its exception propagates). A failed secondary sink is
+        logged, and counted through the error signal, but never fails the run.
+        """
+        if not self.sinks:
+            self.primary.put(key, data)
+            return
+        with ThreadPoolExecutor(max_workers=1 + len(self.sinks)) as ex:
+            primary_future = ex.submit(self.primary.put, key, data)
+            sink_futures = [(s, ex.submit(s.put, key, data)) for s in self.sinks]
+            primary_future.result()
+            for s, f in sink_futures:
+                try:
+                    f.result()
+                except Exception:
+                    log.exception("secondary sink failed", extra={"sink": s.describe(), "key": key})
 
     def get(self, key: str) -> bytes | None:
         return self.primary.get(key)

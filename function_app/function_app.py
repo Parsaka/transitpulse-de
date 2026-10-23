@@ -22,11 +22,22 @@ app = func.FunctionApp()
 log = logging.getLogger("transitpulse.function")
 
 
+_cache: dict[str, object] = {}
+
+
+def _runtime():  # type: ignore[no-untyped-def]
+    """Settings and lake built once per worker process: the blob and Files API clients keep their
+    TLS connections and the managed-identity token between invocations (warm instance)."""
+    if "lake" not in _cache:
+        settings = get_settings()
+        tplog.configure(settings.log_format)
+        _cache["settings"], _cache["lake"] = settings, settings.lake()
+    return _cache["settings"], _cache["lake"]
+
+
 def collect_all(feeds: str) -> list[RunSummary]:
     """Run every feed in ``feeds`` (comma separated) and return the summaries."""
-    settings = get_settings()
-    tplog.configure(settings.log_format)
-    lake = settings.lake()
+    settings, lake = _runtime()
     summaries = []
     for name in [f.strip() for f in feeds.split(",") if f.strip()]:
         summaries.append(run_once(get_feed(name, settings.feed_urls), settings, lake=lake))
