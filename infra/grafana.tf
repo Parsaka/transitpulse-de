@@ -2,8 +2,12 @@
 # and read metrics, nothing else. The client secret is a Terraform output (sensitive) that the
 # owner pastes into the Grafana data source once; Grafana Cloud Free has no OIDC for Azure.
 
+data "azuread_client_config" "current" {}
+
 resource "azuread_application" "grafana" {
   display_name = "grafana-${local.name}"
+  # The CI identity plans this stack and may only read applications it owns (no Graph roles).
+  owners = [data.azuread_client_config.current.object_id, azuread_service_principal.github.object_id]
 }
 
 resource "azuread_service_principal" "grafana" {
