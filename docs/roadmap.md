@@ -2,9 +2,13 @@
 
 - [x] **Phase 0 – Foundation** (2026-10-22): repo, package, GTFS-RT collector (fetch with ETag, parse, delta
   store, Parquet partitions), offline tests on trimmed real feeds, CI (ruff, mypy, pytest). Open: the 11.7 MB JSON delta state needs a compact encoding before it lives in a blob.
-- [ ] **Phase 1 – Free-tier Azure with Terraform**: storage account (ADLS Gen2), Function App
-  (Consumption), Log Analytics, Key Vault, budget alert at 2 EUR, OIDC for GitHub; collector runs
-  every 60 s as a timer-triggered Function with structured JSON logs; first alert "collector silent".
+- [x] **Phase 1 – Free-tier Azure with Terraform** (2026-10-22): ADLS Gen2 lake, Function App
+  (Linux Consumption, Python 3.11, managed identity), Log Analytics + Application Insights, Key
+  Vault, action group + scheduled-query alert (collector silent or failing), budget alert at 2,
+  GitHub OIDC identity; 27 resources, re-plan clean, CI plans through OIDC. The collector runs every
+  60 s in Azure and writes deltas to the lake (verified, see docs/azure-setup.md). Delta state as
+  Parquet: 11.7 MB -> 0.65 MB. Smoke test runs the real package in the Functions image in CI.
+  Open: provoke the alert on purpose (phase 4 drill); measure GB-seconds against the free grant.
 - [ ] **Phase 2 – Databricks Free Edition**: Unity Catalog layout, Volume landing via Files API,
   Lakeflow Declarative Pipeline (Auto Loader) bronze → silver with expectations, static GTFS
   dimensions, weekly job; deployed with Databricks Asset Bundles from CI.

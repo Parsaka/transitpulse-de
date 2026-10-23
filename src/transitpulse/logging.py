@@ -35,14 +35,26 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure(fmt: str = "text", level: int = logging.INFO) -> None:
+    """Attach one stdout handler (idempotent) and apply the format to every root handler.
+
+    Foreign handlers are kept on purpose: the Azure Functions worker installs its own root handler
+    that forwards records to Application Insights, and it uses the handler's formatter for the
+    message text, so giving it the JSON formatter is what makes ``AppTraces`` hold the JSON lines.
+    Clearing the handlers (the first version did) silently dropped every log in the cloud.
+    """
     root = logging.getLogger()
-    root.handlers.clear()
+    formatter: logging.Formatter = (
+        JsonFormatter()
+        if fmt == "json"
+        else logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    for h in [h for h in root.handlers if getattr(h, "_transitpulse", False)]:
+        root.removeHandler(h)  # re-created below, bound to the current sys.stdout
     handler = logging.StreamHandler(sys.stdout)
-    if fmt == "json":
-        handler.setFormatter(JsonFormatter())
-    else:
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    handler._transitpulse = True  # type: ignore[attr-defined]
     root.addHandler(handler)
+    for h in root.handlers:
+        h.setFormatter(formatter)
     root.setLevel(level)
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
