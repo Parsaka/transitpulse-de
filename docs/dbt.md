@@ -30,11 +30,13 @@ seed: route_type_modes (VBB extended route types -> mode)
   updates succeeded in 30 days; at most 1 % of records failed a warning expectation in 7 days.
 
 ## Tests
-34 data tests: uniqueness of every grain (`dbt_utils.unique_combination_of_columns`), ranges
+41 data tests: uniqueness of every grain (`dbt_utils.unique_combination_of_columns`), ranges
 (punctuality and rates in [0, 1], counts at least 1), accepted modes, not-null keys on the
 dimensions, plus two singular tests: at least 70 % of realtime trips must match the static
-schedule, and observed events must lie in the past. Source freshness on the four live sources
-(warn 30 min, error 2 h).
+schedule (warning only: measured 1.00 for yesterday's service date, 0.66 for today and 0.51 for
+tomorrow, since trips of the next schedule version reach the realtime feed before the static zip),
+and observed events must lie in the past. Source freshness on the five live sources (warn 30 min,
+error 2 h).
 
 ## First prod build (2026-10-23 09:48 UTC, about 11 hours of data)
 - `dbt build --target prod`: 47 nodes (1 seed, 2 views, 8 tables, 34 tests, 2 exposures) in

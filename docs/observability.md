@@ -32,8 +32,9 @@ is intended: the table shows what happened, not what should have happened.
 | budget 50/90/100 % | Azure Cost Management | spend in the resource group | email |
 
 Measured latencies (docs/drills.md): a feed outage fires the Azure alert 10 minutes after the
-first failed execution; a poison file fails the pipeline update after 2 minutes; the Azure alert
-resolves about three evaluation periods after the last failure.
+first failed execution, a stopped collector after 28 minutes; a poison file fails the pipeline
+update after 2 minutes; the Azure alert resolves 44 to 50 minutes after the first good execution
+(several clean evaluations).
 
 ## Status site
 The hourly workflow publishes `status.json` (SLOs, error budgets, network now, daily punctuality,
