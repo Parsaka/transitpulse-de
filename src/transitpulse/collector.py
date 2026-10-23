@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -120,16 +121,16 @@ def run_once(
             rows, gone = parsed.stop_times, []
 
         with tplog.Timed(log, "write") as t:
-            for dataset, data in (
-                ("stop_times", rows),
-                ("alerts", parsed.alerts),
-                ("trips_gone", gone),
-            ):
-                if not data:
-                    continue
-                key = partition_key(dataset, feed.name, parsed.feed_ts)
-                blob = rows_to_parquet(data, dataset)
-                lk.put(key, blob)
+            # encode first (CPU), then upload every object of the run at once (network-bound)
+            datasets = (("stop_times", rows), ("alerts", parsed.alerts), ("trips_gone", gone))
+            blobs = [
+                (partition_key(dataset, feed.name, parsed.feed_ts), rows_to_parquet(data, dataset))
+                for dataset, data in datasets
+                if data
+            ]
+            with ThreadPoolExecutor(max_workers=max(1, len(blobs))) as ex:
+                list(ex.map(lambda kb: lk.put(kb[0], kb[1]), blobs))
+            for key, blob in blobs:
                 summary.bytes_written += len(blob)
                 summary.files.append(key)  # type: ignore[union-attr]
             summary.n_written_stop_times, summary.n_trips_gone = len(rows), len(gone)

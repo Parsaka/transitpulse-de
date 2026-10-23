@@ -30,6 +30,13 @@ class FakeTimer:
     past_due = False
 
 
+@pytest.fixture(autouse=True)
+def _reset_runtime_cache(function_app):  # type: ignore[no-untyped-def]
+    function_app._cache.clear()
+    yield
+    function_app._cache.clear()
+
+
 @respx.mock
 def test_collect_runs_every_configured_feed(
     function_app, tmp_path: Path, vbb_pb: bytes, gtfsde_pb: bytes, monkeypatch: pytest.MonkeyPatch
