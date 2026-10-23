@@ -13,6 +13,11 @@ resources:
         transitpulse.landing: /Volumes/${var.catalog}/${resources.schemas.landing.name}/raw/raw
         transitpulse.static: /Volumes/${var.catalog}/${resources.schemas.landing.name}/raw/static/gtfs
         transitpulse.bronze_schema: ${resources.schemas.bronze.name}
+      # queryable event log (expectation metrics, rows written) for the health job, dbt and alerts
+      event_log:
+        catalog: ${var.catalog}
+        schema: ${resources.schemas.ops.name}
+        name: lakeflow_event_log
       libraries:
         - file:
             path: ../src/pipelines/transitpulse_pipeline.py

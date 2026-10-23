@@ -8,11 +8,12 @@ gtfs.de (all of Germany), keeps only what changed, and lands it in a data lake. 
 delay propagation, cancellations, weather impact and a forward-looking delay forecast. The whole
 pipeline watches itself with SLOs and alerts, and every optimisation is measured before and after.
 
-**Status: phase 1 done (2026-10-22).** The collector runs every minute in Azure (Functions,
-Consumption plan, managed identity) and writes deltas to an ADLS Gen2 lake; the whole Azure side
-is Terraform, CI plans it through OIDC, and one alert plus a 2-per-month budget watch it. No
-Databricks, dbt or dashboards yet: see the roadmap. Nothing below is a claim about anything the
-roadmap does not mark done.
+**Status: phase 2 done (2026-10-23).** The collector runs every minute in Azure (Functions,
+Consumption plan, managed identity), writes deltas to an ADLS Gen2 lake and pushes them into a
+Databricks Unity Catalog Volume; a Lakeflow Declarative Pipeline builds bronze and silver tables
+with expectations plus the static-schedule dimensions every 15 minutes, and a health job writes
+counts, freshness and expectation results to `ops/health.json`. Azure is Terraform, Databricks is
+a bundle, CI validates and plans both. No dbt gold, SLOs or dashboards yet: see the roadmap.
 
 ## What exists today
 - `transitpulse collect --feed vbb --once`: fetch with ETag, parse, delta against the previous
@@ -23,6 +24,9 @@ roadmap does not mark done.
   and the GitHub OIDC identity ([docs/azure-setup.md](docs/azure-setup.md)).
 - CI: ruff, mypy, 42 offline tests on trimmed real feeds, Terraform validate and an OIDC plan,
   and a smoke test that runs the deployable package in the official Functions image with Azurite.
+- Databricks Free Edition ([docs/databricks.md](docs/databricks.md)): landing Volume, pipeline
+  `bronze_*` → `silver_*` + `dim_*`, job every 15 min, health snapshot; `transitpulse gtfs-static`
+  lands the VBB schedule twice a week.
 - `transitpulse inspect <file.pb>`: delay distribution of a saved feed.
 
 ## Measured so far (2026-10-22, laptop, single fetch)
@@ -48,8 +52,13 @@ The delta store suppressed about 99% of the rows.
 11 of 11 executions succeeded, one per minute; 1.7 to 2.6 s warm, 4.1 s on the cold start; each
 run wrote one stop-time delta file of 9 to 13 KB and one gone-trips file of about 1.8 KB; the
 state blob is 0.6 MB. Before the fix, 26 executions had failed in 25 ms each (`GLIBC` import
-error), which is what the smoke test now catches in CI. Storage per day, GB-seconds against the
-free grant and polling trade-offs are measured in phase 6, not estimated.
+error), which is what the smoke test now catches in CI.
+
+**In Databricks** (prod pipeline, 2026-10-23): first full refresh of 13 flows in 170 s; silver holds
+167,625 stop-time updates out of 168,409 bronze rows (784 dropped by the two hard expectations or
+as duplicates), 147,385 latest predictions, 1,488 gone trips; dimensions 1,255 routes, 41,929
+stops, 184,416 trips. Storage per day, GB-seconds against the free grant and polling trade-offs
+are measured in phase 6, not estimated.
 
 ## Plan and operations
 See [docs/roadmap.md](docs/roadmap.md) (phases), [docs/adr/0001-free-tier-architecture.md](docs/adr/0001-free-tier-architecture.md)
