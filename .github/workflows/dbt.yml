@@ -13,11 +13,12 @@ on:
     branches: [main]
     paths: ["dbt/**", ".github/workflows/dbt.yml"]
   schedule:
-    - cron: "7 * * * *"
+    - cron: "7 */2 * * *" # every two hours while the repository is private (Actions minute cap, docs/cost.md)
   workflow_dispatch:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
@@ -70,7 +71,21 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install "dbt-databricks>=1.10,<1.11"
+      - run: pip install "dbt-databricks>=1.10,<1.11" "../.[azure]"
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Land collector executions from Log Analytics (lake + Volume)
+        env:
+          TP_LAKE_BACKEND: azure
+          TP_ADLS_ACCOUNT_URL: ${{ vars.ADLS_ACCOUNT_URL }}
+          TP_DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          TP_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          TP_LOG_ANALYTICS_WORKSPACE_ID: ${{ vars.LOG_ANALYTICS_WORKSPACE_ID }}
+          TP_LOG_FORMAT: json
+        run: transitpulse ops-sync --hours 3 | tail -n 1
       - run: dbt deps
       - name: Source freshness (warn is fine, error fails the run)
         run: dbt source freshness --target prod
@@ -80,11 +95,17 @@ jobs:
         run: |
           curl -s -o /dev/null -w "manifest upload: HTTP %{http_code}\n" -X PUT -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             -H "Content-Type: application/octet-stream" --data-binary @target/manifest.json "$MANIFEST_URL?overwrite=true"
-      - name: Prepare the docs site
+      - name: Build the public status site (status.json + status page + dbt docs)
         run: |
-          mkdir -p site
-          cp target/static_index.html site/index.html
-          cp target/manifest.json target/catalog.json site/
+          mkdir -p site/docs
+          cp ../site/index.html site/index.html
+          cp target/static_index.html site/docs/index.html
+          cp target/manifest.json target/catalog.json site/docs/
+          python ../scripts/publish_status.py site/status.json
+      - name: Publish to the Azure static website
+        run: >
+          az storage blob upload-batch --account-name ${{ vars.LAKE_STORAGE_ACCOUNT }} -d '$web' -s site
+          --auth-mode login --overwrite -o none
       - uses: actions/upload-artifact@v4
         with:
           name: dbt-docs

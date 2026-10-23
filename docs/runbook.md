@@ -39,6 +39,18 @@ AppExceptions | order by TimeGenerated desc | take 1 | project TimeGenerated, In
 | runs succeed but `n_written_stop_times` is 0 for a long time | feed frozen upstream (header timestamp not advancing: `feed_age_s` grows) | nothing to fix locally; note it in the data log |
 | state blob grows past a few MB | gone-trip cleanup not running (feed stopped sending trips) | inspect `state/<feed>.parquet` kinds; delete it to reset (one full snapshot follows) |
 
+## Poison file in the landing Volume (drill 3)
+Symptom: pipeline updates fail with `FAILED_READ_FILE` naming a file under `raw/...`; the job
+retries up to five times, then stops; the owner gets the job failure mail. Fix: delete the file
+(`databricks fs rm dbfs:/Volumes/...` or the Files API) and start an update. Auto Loader skips
+the deleted file (`ignoreMissingFiles`); before that option existed every later update failed
+with `CloudFileNotFoundException` until a full refresh.
+
+## Azure Monitor emails need a verified address
+Azure Monitor sends notifications to an action-group email only after the owner clicks the
+verification link in "Action required: Verify your email for Azure Monitor action group". Until
+then an alert fires (visible in the portal and the alerts API) but no mail arrives (drill 1).
+
 ## Reset the delta state
 Delete `state/<feed>.parquet` in the lake. The next run writes a full snapshot (about 700 KB)
 and continues with deltas. No data is lost: raw files are never rewritten.

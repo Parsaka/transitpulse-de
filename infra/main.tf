@@ -285,3 +285,13 @@ resource "azurerm_consumption_budget_resource_group" "main" {
     }
   }
 }
+
+# ---------- Public status: static website on the lake storage account ----------
+# Free (storage only): hosts status.json (read by Grafana and the project page) and the dbt docs.
+# GitHub Pages is not available on a private repository with the Free plan.
+
+resource "azurerm_storage_account_static_website" "status" {
+  storage_account_id = azurerm_storage_account.lake.id
+  index_document     = "index.html"
+  error_404_document = "index.html"
+}

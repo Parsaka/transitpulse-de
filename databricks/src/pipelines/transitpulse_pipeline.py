@@ -35,6 +35,13 @@ SCHEMAS = {
     "trips_gone": """
         feed STRING, feed_ts TIMESTAMP, trip_id STRING, start_date STRING, last_seen_ts STRING
     """,
+    # collector executions, synced hourly from Log Analytics by `transitpulse ops-sync`
+    "collector_runs": """
+        run_id STRING, started_at TIMESTAMP, success BOOLEAN, duration_ms DOUBLE, feed STRING,
+        status STRING, http_status INT, fetch_ms DOUBLE, feed_ts TIMESTAMP, feed_age_s DOUBLE,
+        n_stop_times BIGINT, n_written_stop_times BIGINT, n_trips_gone BIGINT, reduction DOUBLE,
+        bytes_written BIGINT, state_bytes BIGINT, total_ms DOUBLE, lake STRING, error STRING
+    """,
 }
 
 
@@ -47,6 +54,10 @@ def autoload(dataset: str):
         # the files already carry `feed`; do not also infer feed=/date=/hour= from the path
         .option("cloudFiles.partitionColumns", "")
         .option("pathGlobFilter", "*.parquet")
+        # a file deleted after Auto Loader listed it (drill 3: a poison file removed by the operator)
+        # is skipped instead of failing every later update with CloudFileNotFoundException;
+        # corrupt files still fail the update loudly, which is what we want
+        .option("ignoreMissingFiles", "true")
         .schema(SCHEMAS[dataset])
         .load(f"{LANDING}/{dataset}")
         .withColumn("_source_file", F.col("_metadata.file_path"))
@@ -56,7 +67,7 @@ def autoload(dataset: str):
 
 # ---------- bronze: one streaming table per raw dataset ----------
 
-for _dataset in ("stop_times", "trips_gone", "alerts"):
+for _dataset in ("stop_times", "trips_gone", "alerts", "collector_runs"):
 
     def _make(dataset: str = _dataset):  # bind the loop variable
         @dlt.table(
@@ -140,6 +151,23 @@ def silver_alerts():
                 "array<struct<agency_id:string,route_id:string,stop_id:string,trip_id:string>>",
             ),
         )
+    )
+
+
+@dlt.table(
+    name="silver_collector_runs",
+    comment="One row per collector execution in Azure (success, duration, rows written, feed age).",
+    table_properties={"quality": "silver"},
+    cluster_by=["run_date"],
+)
+@dlt.expect_or_drop("run_id_present", "run_id IS NOT NULL")
+@dlt.expect("plausible_duration", "duration_ms BETWEEN 0 AND 240000")
+def silver_collector_runs():
+    return (
+        dlt.read_stream(f"{BRONZE}.bronze_collector_runs")
+        .withWatermark("started_at", "6 hours")
+        .dropDuplicates(["run_id"])
+        .withColumn("run_date", F.to_date("started_at"))
     )
 
 
