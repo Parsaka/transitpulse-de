@@ -33,3 +33,10 @@ targets:
       root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
     variables:
       schedule_pause_status: UNPAUSED
+    resources:
+      jobs:
+        transitpulse_refresh:
+          # a failed refresh (pipeline or health task) mails the owner; dev stays silent
+          email_notifications:
+            on_failure: [parsa.kamali.data@gmail.com]
+            no_alert_for_skipped_runs: true

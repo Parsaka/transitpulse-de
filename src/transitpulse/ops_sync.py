@@ -87,11 +87,15 @@ def rows_from_query(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for r in records:
         s = json.loads(r["summary"]) if r.get("summary") else {}
+        # The request telemetry can report Success=true for an execution whose Python handler
+        # raised (seen in drill 1, docs/drills.md); the collector's own summary is the truth when
+        # it exists, the request flag is the fallback (no summary = the handler never got that far).
+        success = s["status"] in ("ok", "not_modified") if s.get("status") else bool(r["success"])
         out.append(
             {
                 "run_id": s.get("run_id") or r["req_id"],
                 "started_at": _parse_ts(r["started_at"]),
-                "success": bool(r["success"]),
+                "success": success,
                 "duration_ms": float(r["duration_ms"])
                 if r.get("duration_ms") is not None
                 else None,

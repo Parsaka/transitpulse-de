@@ -54,6 +54,10 @@ def autoload(dataset: str):
         # the files already carry `feed`; do not also infer feed=/date=/hour= from the path
         .option("cloudFiles.partitionColumns", "")
         .option("pathGlobFilter", "*.parquet")
+        # a file deleted after Auto Loader listed it (drill 3: a poison file removed by the operator)
+        # is skipped instead of failing every later update with CloudFileNotFoundException;
+        # corrupt files still fail the update loudly, which is what we want
+        .option("ignoreMissingFiles", "true")
         .schema(SCHEMAS[dataset])
         .load(f"{LANDING}/{dataset}")
         .withColumn("_source_file", F.col("_metadata.file_path"))

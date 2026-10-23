@@ -81,6 +81,20 @@ def test_write_windows_one_file_per_hour_idempotent(tmp_path: Path) -> None:
     assert len(list(tmp_path.rglob("*.parquet"))) == 2
 
 
+def test_summary_status_overrides_request_success_flag() -> None:
+    rec = {
+        "req_id": "r9",
+        "started_at": "2026-10-23T10:33:00Z",
+        "success": True,  # what AppRequests said during drill 1
+        "duration_ms": 400.0,
+        "summary": _summary(
+            "a9", status="error", http_status=404, error="FeedFetchError: HTTP 404"
+        ),
+    }
+    row = rows_from_query([rec])[0]
+    assert row["success"] is False and row["error"].startswith("FeedFetchError")
+
+
 def test_write_windows_empty(tmp_path: Path) -> None:
     res = write_windows([], LocalLake(tmp_path))
     assert res.windows == 0 and res.first is None
