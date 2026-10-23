@@ -43,6 +43,13 @@ Azure Function ──Files API──▶ Volume workspace.tp_landing.raw
   `silver_stop_time_updates` 167,625 (784 rows dropped by the two `expect_or_drop` rules or as
   duplicates), `silver_stop_time_latest` 147,385, `silver_trips_gone` 1,488, `bronze_alerts` 0.
 - The job run that produced it: queued 2.5 min on serverless, pipeline + health 30 s once running.
+- **End to end after the merge (02:00 UTC scheduled run):** the Function had been writing to the
+  Volume for 4 minutes (`lake: azure ... + volume ...` in its run summaries, 0 sink failures); the
+  refresh ingested 4,284 new bronze rows and 4,196 silver rows (88 duplicates removed), every
+  expectation passed (`trip_id_present`, `feed_ts_present`, `plausible_arrival_delay`,
+  `plausible_departure_delay`, `stop_known_or_cancelled`: 4,196 pass, 0 fail), and
+  `health.json` reported the newest stop-time update 2.5 minutes old. Totals at that point:
+  172,693 bronze rows, 171,821 silver updates, 150,730 latest predictions, 1,534 gone trips.
 
 ## Reading numbers out
 Free Edition exposes neither the SQL Statement Execution API nor event details through the
