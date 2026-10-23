@@ -8,12 +8,13 @@ gtfs.de (all of Germany), keeps only what changed, and lands it in a data lake. 
 delay propagation, cancellations, weather impact and a forward-looking delay forecast. The whole
 pipeline watches itself with SLOs and alerts, and every optimisation is measured before and after.
 
-**Status: phase 2 done (2026-10-23).** The collector runs every minute in Azure (Functions,
+**Status: phase 3 done (2026-10-23).** The collector runs every minute in Azure (Functions,
 Consumption plan, managed identity), writes deltas to an ADLS Gen2 lake and pushes them into a
 Databricks Unity Catalog Volume; a Lakeflow Declarative Pipeline builds bronze and silver tables
-with expectations plus the static-schedule dimensions every 15 minutes, and a health job writes
-counts, freshness and expectation results to `ops/health.json`. Azure is Terraform, Databricks is
-a bundle, CI validates and plans both. No dbt gold, SLOs or dashboards yet: see the roadmap.
+with expectations plus the static-schedule dimensions every 15 minutes; dbt builds the gold marts
+(punctuality, delay propagation, cancellations, network now) and the SLO tables on the serverless
+SQL warehouse every hour, with slim CI on pull requests. Azure is Terraform, Databricks is a
+bundle, CI validates and plans both. No alert drills, dashboards or ML yet: see the roadmap.
 
 ## What exists today
 - `transitpulse collect --feed vbb --once`: fetch with ETag, parse, delta against the previous
@@ -27,6 +28,9 @@ a bundle, CI validates and plans both. No dbt gold, SLOs or dashboards yet: see 
 - Databricks Free Edition ([docs/databricks.md](docs/databricks.md)): landing Volume, pipeline
   `bronze_*` → `silver_*` + `dim_*`, job every 15 min, health snapshot; `transitpulse gtfs-static`
   lands the VBB schedule twice a week.
+- dbt gold ([docs/dbt.md](docs/dbt.md)): `mart_punctuality_hourly/daily`, `mart_network_now`,
+  `mart_delay_propagation`, `mart_cancellations_daily`, `slo_status`; 34 tests, source freshness,
+  slim CI deferred to the prod manifest, hourly prod build.
 - `transitpulse inspect <file.pb>`: delay distribution of a saved feed.
 
 ## Measured so far (2026-10-22, laptop, single fetch)
@@ -57,8 +61,16 @@ error), which is what the smoke test now catches in CI.
 **In Databricks** (prod pipeline, 2026-10-23): first full refresh of 13 flows in 170 s; silver holds
 167,625 stop-time updates out of 168,409 bronze rows (784 dropped by the two hard expectations or
 as duplicates), 147,385 latest predictions, 1,488 gone trips; dimensions 1,255 routes, 41,929
-stops, 184,416 trips. Storage per day, GB-seconds against the free grant and polling trade-offs
-are measured in phase 6, not estimated.
+stops, 184,416 trips.
+
+**First answers from the gold layer** (2026-10-23, about 11 hours of VBB data, so a snapshot, not a
+study): network punctuality 98.4 % of 456,692 observed stop events (S-Bahn and U-Bahn at 100 %,
+buses 96.5 %, regional rail 91.3 % at 09:30 UTC); buses enter their route with 1.0 min of delay
+and leave with 1.5 min; trams had the highest cancellation rate (3.6 % of trips seen). The SLO
+table was honest on day one: the pipeline SLO is breached (37 of 47 updates succeeded, the ten
+failures being the bootstrap incident) and the first freshness target of 15 min was unreachable
+with a 15-minute refresh cadence (recalibrated to 20). Storage per day, GB-seconds against the
+free grant and polling trade-offs are measured in phase 6, not estimated.
 
 ## Plan and operations
 See [docs/roadmap.md](docs/roadmap.md) (phases), [docs/adr/0001-free-tier-architecture.md](docs/adr/0001-free-tier-architecture.md)

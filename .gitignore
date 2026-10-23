@@ -21,3 +21,4 @@ terraform.tfvars
 infra/tfplan
 infra/*.txt
 .smoke/
+.venv-dbt/
