@@ -12,13 +12,13 @@ rebuilt the blob client, the Files API client and the identity token on every in
 After: primary and sink written concurrently, all objects of a run uploaded at once, clients and
 token kept per worker process.
 
-| Metric (60 s polling, 45 runs each) | Before 12:20–13:05 | After AFTER_WINDOW | Change |
+| Metric (60 s polling) | Before 12:20–13:05 (45 runs) | After 13:25–13:58 (32 runs) | Change |
 |---|---|---|---|
-| total per run p50 / p95 (ms) | 4,895 / 6,131 | AFTER_TOTAL | |
-| write step p50 / p95 (ms) | 1,534 / 1,826 | AFTER_WRITE | |
-| load_state p50 (ms) | 212 | AFTER_LOAD | |
-| fetch / parse / delta p50 (ms) | 647 / 704 / 1,739 | AFTER_FPD | unchanged by design |
-| rows / bytes written per run | 3,575 / 52 KB | AFTER_ROWS | traffic dependent |
+| total per run p50 / p95 (ms) | 4,895 / 6,131 | 3,925 / 4,246 | −20 % / −31 % |
+| write step p50 / p95 (ms) | 1,534 / 1,826 | 1,020 / 1,192 | −33 % / −35 % |
+| load_state p50 (ms) | 212 | 160 | −25 % (reused client) |
+| fetch / parse / delta p50 (ms) | 647 / 704 / 1,739 | 597 / 722 / 1,401 | not targeted; delta follows the rows per run |
+| rows / bytes written per run | 3,575 / 52 KB | 2,620 / 45 KB | traffic dependent (afternoon lull) |
 
 ## 2. Function package: pandas removed
 pandas was a declared dependency but never imported; pyarrow does all the Parquet work.
@@ -29,9 +29,11 @@ pandas was a declared dependency but never imported; pyarrow does all the Parque
 | cold start, first execution after a (re)start | 20,352 ms and 24,394 ms (two samples) | 6,026 ms (one sample, first execution after the 13:22 deploy) | more samples with the next restarts |
 
 ## 3. Polling interval: 60 s versus 120 s
-The schedule is an app setting (`TP_SCHEDULE`), changed with `terraform apply`. One hour each,
-adjacent hours, same weekday afternoon; traffic differs slightly between the hours, so the rows
-per hour are indicative, the per-run figures are not.
+The schedule is an app setting (`TP_SCHEDULE`). The 120 s run started 13:59 UTC on 2026-10-23 and a
+one-off GitHub cron (`polling-experiment-revert.yml`) sets it back to every minute at 15:40 UTC,
+so the experiment does not depend on a laptop. Comparison windows: 60 s = 13:25–13:59 (and
+12:20–13:05), 120 s = 13:59–15:40. Traffic differs between the hours, so rows per hour are
+indicative, the per-run figures are not. Results are filled in after the window closes.
 
 | Metric | 60 s (WIN60) | 120 s (WIN120) |
 |---|---|---|
