@@ -171,19 +171,25 @@ def silver_collector_runs():
     )
 
 
-# ---------- silver: latest known prediction per trip and stop (materialized view) ----------
+# ---------- silver: latest known prediction per trip and stop (AUTO CDC, SCD type 1) ----------
+# Was a materialized view (group-by + self-join over every update, recomputed on each refresh:
+# 124 s per update on 2026-10-23). As a streaming table fed by AUTO CDC it only applies the new
+# updates of the micro-batch, sequenced by feed_ts.
 
-
-@dlt.table(
+dlt.create_streaming_table(
     name="silver_stop_time_latest",
     comment="Latest observed prediction per (feed, trip, service date, stop): the current state of the network.",
     table_properties={"quality": "silver"},
+    cluster_by=["feed_date", "trip_id"],
 )
-def silver_stop_time_latest():
-    df = dlt.read("silver_stop_time_updates")
-    w_cols = ["feed", "trip_id", "start_date", "stop_sequence", "stop_id"]
-    latest = df.groupBy(*w_cols).agg(F.max("feed_ts").alias("feed_ts"))
-    return latest.join(df, [*w_cols, "feed_ts"], "inner")
+
+dlt.apply_changes(
+    target="silver_stop_time_latest",
+    source="silver_stop_time_updates",
+    keys=["feed", "trip_id", "start_date", "stop_sequence", "stop_id"],
+    sequence_by=F.col("feed_ts"),
+    stored_as_scd_type=1,
+)
 
 
 # ---------- dimensions from the static GTFS schedule (weekly job lands them in the Volume) ----------
