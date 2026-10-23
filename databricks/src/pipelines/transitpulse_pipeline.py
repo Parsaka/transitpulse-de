@@ -12,6 +12,30 @@ import dlt
 from pyspark.sql import functions as F
 
 LANDING = spark.conf.get("transitpulse.landing", "/Volumes/workspace/tp_landing/raw/raw")
+# Bronze tables are published into their own schema (default publishing mode allows
+# schema-qualified names); silver and the dimensions land in the pipeline's target schema.
+BRONZE = spark.conf.get("transitpulse.bronze_schema", "tp_bronze")
+
+
+# Explicit schemas (mirroring transitpulse/storage.py): inference needs at least one file, and the
+# VBB feed publishes no alerts, so `raw/alerts` can stay empty for a long time.
+SCHEMAS = {
+    "stop_times": """
+        feed STRING, feed_ts TIMESTAMP, entity_id STRING, trip_id STRING, route_id STRING,
+        start_date STRING, start_time STRING, direction_id INT, trip_schedule_relationship INT,
+        vehicle_id STRING, trip_ts TIMESTAMP, stop_sequence INT, stop_id STRING,
+        stop_schedule_relationship INT, arrival_delay_s INT, arrival_time TIMESTAMP,
+        departure_delay_s INT, departure_time TIMESTAMP
+    """,
+    "alerts": """
+        feed STRING, feed_ts TIMESTAMP, entity_id STRING, cause INT, effect INT,
+        active_from TIMESTAMP, active_to TIMESTAMP, header_text STRING, description_text STRING,
+        informed_entities STRING
+    """,
+    "trips_gone": """
+        feed STRING, feed_ts TIMESTAMP, trip_id STRING, start_date STRING, last_seen_ts STRING
+    """,
+}
 
 
 def autoload(dataset: str):
@@ -22,7 +46,8 @@ def autoload(dataset: str):
         .option("cloudFiles.schemaLocation", f"{LANDING}/_schemas/{dataset}")
         # the files already carry `feed`; do not also infer feed=/date=/hour= from the path
         .option("cloudFiles.partitionColumns", "")
-        .option("cloudFiles.inferColumnTypes", "true")
+        .option("pathGlobFilter", "*.parquet")
+        .schema(SCHEMAS[dataset])
         .load(f"{LANDING}/{dataset}")
         .withColumn("_source_file", F.col("_metadata.file_path"))
         .withColumn("_ingested_at", F.current_timestamp())
@@ -35,7 +60,7 @@ for _dataset in ("stop_times", "trips_gone", "alerts"):
 
     def _make(dataset: str = _dataset):  # bind the loop variable
         @dlt.table(
-            name=f"bronze_{dataset}",
+            name=f"{BRONZE}.bronze_{dataset}",
             comment=f"Raw GTFS-RT {dataset} deltas as landed by the collector (one file per poll).",
             table_properties={"quality": "bronze", "delta.enableChangeDataFeed": "true"},
         )
@@ -65,7 +90,7 @@ for _dataset in ("stop_times", "trips_gone", "alerts"):
 )
 @dlt.expect("stop_known_or_cancelled", "stop_id IS NOT NULL OR trip_schedule_relationship = 3")
 def silver_stop_time_updates():
-    df = dlt.read_stream("bronze_stop_times")
+    df = dlt.read_stream(f"{BRONZE}.bronze_stop_times")
     return (
         df.withWatermark("feed_ts", "2 hours")
         .dropDuplicates(["feed", "trip_id", "start_date", "stop_sequence", "stop_id", "feed_ts"])
@@ -87,7 +112,7 @@ def silver_stop_time_updates():
 @dlt.expect_or_drop("trip_id_present", "trip_id IS NOT NULL")
 def silver_trips_gone():
     return (
-        dlt.read_stream("bronze_trips_gone")
+        dlt.read_stream(f"{BRONZE}.bronze_trips_gone")
         .withWatermark("feed_ts", "2 hours")
         .dropDuplicates(["feed", "trip_id", "start_date", "feed_ts"])
         .withColumn("feed_date", F.to_date("feed_ts"))
@@ -104,7 +129,7 @@ def silver_trips_gone():
 @dlt.expect("has_text", "header_text IS NOT NULL OR description_text IS NOT NULL")
 def silver_alerts():
     return (
-        dlt.read_stream("bronze_alerts")
+        dlt.read_stream(f"{BRONZE}.bronze_alerts")
         .withWatermark("feed_ts", "2 hours")
         .dropDuplicates(["feed", "entity_id", "feed_ts"])
         .withColumn("feed_date", F.to_date("feed_ts"))

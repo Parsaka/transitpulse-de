@@ -12,6 +12,7 @@ resources:
         # resources.schemas.*.name resolves to the dev-prefixed schema in development mode
         transitpulse.landing: /Volumes/${var.catalog}/${resources.schemas.landing.name}/raw/raw
         transitpulse.static: /Volumes/${var.catalog}/${resources.schemas.landing.name}/raw/static/gtfs
+        transitpulse.bronze_schema: ${resources.schemas.bronze.name}
       libraries:
         - file:
             path: ../src/pipelines/transitpulse_pipeline.py
