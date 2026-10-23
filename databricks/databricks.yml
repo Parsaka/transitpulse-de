@@ -1,0 +1,35 @@
+# Databricks Asset Bundle: everything the project owns in the workspace.
+#   databricks bundle validate -t dev
+#   databricks bundle deploy   -t dev
+# Free Edition: serverless only, one active pipeline per type, five concurrent job tasks.
+bundle:
+  name: transitpulse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: >-
+      Unity Catalog catalog. Free Edition catalogs use Default Storage and can only be created in
+      the UI (the API and the SQL statement endpoint refuse), so the project lives in the built-in
+      `workspace` catalog with prefixed schemas; set this to a dedicated catalog later if wanted.
+    default: workspace
+  schema_prefix:
+    description: Prefix of every schema of the project inside the catalog
+    default: tp_
+  schedule_pause_status:
+    description: PAUSED in dev so a laptop deploy does not start a second pipeline schedule
+    default: PAUSED
+
+targets:
+  # The workspace host comes from the CLI profile or DATABRICKS_HOST (never from this file).
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      schedule_pause_status: UNPAUSED

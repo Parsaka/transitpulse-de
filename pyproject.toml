@@ -41,6 +41,10 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "B", "UP", "N", "W", "SIM", "RUF"]
 ignore = ["RUF012"]
 
+[tool.ruff.lint.per-file-ignores]
+"databricks/src/**/*.py" = ["N812", "E501", "F821"]  # Spark idioms; spark/dlt are globals
+"tests/*.py" = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"

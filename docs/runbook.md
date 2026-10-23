@@ -50,3 +50,18 @@ TP_LAKE_BACKEND=azure TP_ADLS_ACCOUNT_URL=$(cd infra && terraform output -raw la
   transitpulse collect --feed vbb --once
 ```
 Your user needs `Storage Blob Data Contributor` on the lake account (`admin_principal_id` has it).
+
+## Databricks
+- Workspace `https://dbc-2fb26299-f7ca.cloud.databricks.com`, CLI profile `transitpulse`
+  (`databricks auth login --host ... --profile transitpulse`, browser approval).
+- Landing Volume `/Volumes/workspace/tp_landing/raw` (`raw/...` deltas, `static/gtfs/...`).
+- Pipeline `transitpulse-lakeflow-prod`, job `transitpulse-refresh-prod` every 15 minutes.
+  `databricks pipelines start-update <id>` runs it by hand; `list-pipeline-events` shows errors
+  and expectation metrics.
+- **Token rotation (every 90 days):** `databricks tokens create --lifetime-seconds 7776000`,
+  put the value into `infra/terraform.tfvars` (`databricks_token`) and `terraform apply`
+  (Key Vault secret + Function restart), then `gh secret set DATABRICKS_TOKEN`. Revoke the old
+  token with `databricks tokens delete <id>`.
+- Backfill the Volume from the lake (if the Volume was ever emptied): copy `raw/` blobs with
+  `BlobLake.get` -> `VolumeLake.put` (see the phase-2 PR for the one-off script), then
+  `transitpulse gtfs-static --feed vbb` for the dimensions.

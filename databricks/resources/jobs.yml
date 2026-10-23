@@ -1,0 +1,35 @@
+resources:
+  jobs:
+    transitpulse_refresh:
+      name: transitpulse-refresh-${bundle.target}
+      description: Triggers the Lakeflow pipeline so the silver layer is at most 15 minutes behind the lake.
+      schedule:
+        quartz_cron_expression: "0 */15 * * * ?"
+        timezone_id: Europe/Berlin
+        pause_status: ${var.schedule_pause_status}
+      max_concurrent_runs: 1
+      tasks:
+        - task_key: lakeflow
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.transitpulse_lakeflow.id}
+            full_refresh: false
+        # After every refresh: row counts, freshness and expectation results as JSON in the
+        # Volume (ops/health.json). Read by the runbook, the docs and later the website status.
+        - task_key: health
+          depends_on:
+            - task_key: lakeflow
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/jobs/health_snapshot.py
+            parameters:
+              - ${var.catalog}
+              - ${resources.schemas.bronze.name}
+              - ${resources.schemas.silver.name}
+              - ${resources.schemas.ops.name}
+              - /Volumes/${var.catalog}/${resources.schemas.landing.name}/raw/ops/health.json
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+      email_notifications:
+        on_failure: []

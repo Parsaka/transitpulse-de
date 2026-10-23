@@ -1,0 +1,32 @@
+# Unity Catalog layout inside the built-in `workspace` catalog (see the catalog variable):
+# schemas and the landing Volume are code.
+resources:
+  schemas:
+    landing:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}landing
+      comment: Raw files as landed by the collector (Volume), nothing else
+    bronze:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}bronze
+      comment: Raw GTFS-RT deltas as Delta tables, one per dataset
+    silver:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}silver
+      comment: Typed, de-duplicated, validated stop-time updates, gone trips and alerts
+    gold:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}gold
+      comment: dbt marts (phase 3)
+    ops:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}ops
+      comment: SLO tables, run metrics, forecast log
+
+  volumes:
+    raw:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.landing.name}
+      name: raw
+      volume_type: MANAGED
+      comment: Landing zone written by the Azure Function through the Files API

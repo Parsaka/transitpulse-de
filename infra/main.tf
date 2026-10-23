@@ -116,6 +116,15 @@ resource "azurerm_key_vault_secret" "alert_webhook" {
   depends_on   = [azurerm_role_assignment.kv_admin]
 }
 
+# Databricks Free Edition cannot read the lake, so the Function also pushes each delta into a
+# Unity Catalog Volume; the token never leaves Key Vault (Key Vault reference in the app setting).
+resource "azurerm_key_vault_secret" "databricks_token" {
+  name         = "databricks-token"
+  value        = var.databricks_token
+  key_vault_id = azurerm_key_vault.main.id
+  depends_on   = [azurerm_role_assignment.kv_admin]
+}
+
 # ---------- Collector: Azure Function, Consumption plan (free grant) ----------
 
 # The Functions host needs its own general-purpose account (hierarchical namespace is not
@@ -177,6 +186,9 @@ resource "azurerm_linux_function_app" "collector" {
     TP_LOG_FORMAT                      = "json"
     TP_USER_AGENT                      = var.user_agent
     TP_ALERT_WEBHOOK                   = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.alert_webhook.versionless_id})"
+    TP_DATABRICKS_HOST                 = var.databricks_host
+    TP_DATABRICKS_TOKEN                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.databricks_token.versionless_id})"
+    TP_VOLUME_PATH                     = var.databricks_volume_path
   }
 
   lifecycle {
