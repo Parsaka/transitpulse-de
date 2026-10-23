@@ -8,7 +8,9 @@ gtfs.de (all of Germany), keeps only what changed, and lands it in a data lake. 
 delay propagation, cancellations, weather impact and a forward-looking delay forecast. The whole
 pipeline watches itself with SLOs and alerts, and every optimisation is measured before and after.
 
-**Status: phase 3 done (2026-10-23).** The collector runs every minute in Azure (Functions,
+**Status: phase 4 in progress (2026-10-23).** Live status page:
+https://sttransitpulsedev3dkkh.z1.web.core.windows.net/ (SLOs, error budgets, network now; the
+dbt docs are under `/docs/`). The collector runs every minute in Azure (Functions,
 Consumption plan, managed identity), writes deltas to an ADLS Gen2 lake and pushes them into a
 Databricks Unity Catalog Volume; a Lakeflow Declarative Pipeline builds bronze and silver tables
 with expectations plus the static-schedule dimensions every 15 minutes; dbt builds the gold marts
@@ -31,6 +33,10 @@ bundle, CI validates and plans both. No alert drills, dashboards or ML yet: see 
 - dbt gold ([docs/dbt.md](docs/dbt.md)): `mart_punctuality_hourly/daily`, `mart_network_now`,
   `mart_delay_propagation`, `mart_cancellations_daily`, `slo_status`; 34 tests, source freshness,
   slim CI deferred to the prod manifest, hourly prod build.
+- Observability ([docs/observability.md](docs/observability.md)): four SLOs with error budgets
+  (`slo_error_budget`), collector executions synced hourly into the lakehouse, alerts on three
+  layers, public status site, Grafana dashboard; three incident drills with measured timelines
+  ([docs/drills.md](docs/drills.md)); measured cost ([docs/cost.md](docs/cost.md)).
 - `transitpulse inspect <file.pb>`: delay distribution of a saved feed.
 
 ## Measured so far (2026-10-22, laptop, single fetch)
