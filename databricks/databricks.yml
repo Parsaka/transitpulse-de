@@ -10,8 +10,14 @@ include:
 
 variables:
   catalog:
-    description: Unity Catalog catalog that holds every schema of the project
-    default: transitpulse
+    description: >-
+      Unity Catalog catalog. Free Edition catalogs use Default Storage and can only be created in
+      the UI (the API and the SQL statement endpoint refuse), so the project lives in the built-in
+      `workspace` catalog with prefixed schemas; set this to a dedicated catalog later if wanted.
+    default: workspace
+  schema_prefix:
+    description: Prefix of every schema of the project inside the catalog
+    default: tp_
   schedule_pause_status:
     description: PAUSED in dev so a laptop deploy does not start a second pipeline schedule
     default: PAUSED
@@ -21,10 +27,6 @@ targets:
   dev:
     mode: development
     default: true
-    resources:
-      pipelines:
-        transitpulse_lakeflow:
-          development: true
   prod:
     mode: production
     workspace:

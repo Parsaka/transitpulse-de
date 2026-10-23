@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # Databricks Volume as a second sink (Free Edition cannot read the Azure lake). Empty = off.
     databricks_host: str = ""  # https://dbc-....cloud.databricks.com
     databricks_token: str = ""  # personal access token, from Key Vault in the Function
-    volume_path: str = "/Volumes/transitpulse/landing/raw"
+    volume_path: str = "/Volumes/workspace/tp_landing/raw"
 
     def lake(self) -> Lake:
         primary = make_lake(

@@ -9,9 +9,12 @@
   60 s in Azure and writes deltas to the lake (verified, see docs/azure-setup.md). Delta state as
   Parquet: 11.7 MB -> 0.65 MB. Smoke test runs the real package in the Functions image in CI.
   Open: provoke the alert on purpose (phase 4 drill); measure GB-seconds against the free grant.
-- [ ] **Phase 2 – Databricks Free Edition**: Unity Catalog layout, Volume landing via Files API,
-  Lakeflow Declarative Pipeline (Auto Loader) bronze → silver with expectations, static GTFS
-  dimensions, weekly job; deployed with Databricks Asset Bundles from CI.
+- [~] **Phase 2 – Databricks Free Edition** (2026-10-23): schemas `workspace.tp_*` and the landing
+  Volume from a bundle (dev + prod targets), Files API sink in the Function (token in Key Vault),
+  static GTFS landed (32 agencies, 1,255 routes, 41,929 stops, 184,416 trips), Lakeflow pipeline
+  bronze → silver with expectations plus dim tables, job every 15 min. Findings in ADR 0002
+  (catalog only via UI, SQL statement API unavailable). Open: first pipeline run numbers, bundle
+  deploy from CI.
 - [ ] **Phase 3 – dbt gold**: punctuality, delay propagation, cancellations, weather impact, SLO
   tables; tests, source freshness, docs on GitHub Pages, slim CI on PRs.
 - [ ] **Phase 4 – Observability**: three SLOs with error budget, five alerts (Azure Monitor,

@@ -11,7 +11,7 @@ quota is spent only while there is work to do.
 import dlt
 from pyspark.sql import functions as F
 
-LANDING = spark.conf.get("transitpulse.landing", "/Volumes/transitpulse/landing/raw/raw")
+LANDING = spark.conf.get("transitpulse.landing", "/Volumes/workspace/tp_landing/raw/raw")
 
 
 def autoload(dataset: str):
@@ -135,7 +135,7 @@ def silver_stop_time_latest():
 
 # ---------- dimensions from the static GTFS schedule (weekly job lands them in the Volume) ----------
 
-STATIC = spark.conf.get("transitpulse.static", "/Volumes/transitpulse/landing/raw/static/gtfs")
+STATIC = spark.conf.get("transitpulse.static", "/Volumes/workspace/tp_landing/raw/static/gtfs")
 
 
 def latest_static(table: str):

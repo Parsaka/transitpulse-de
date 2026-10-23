@@ -111,5 +111,5 @@ variable "databricks_token" {
 
 variable "databricks_volume_path" {
   type    = string
-  default = "/Volumes/transitpulse/landing/raw"
+  default = "/Volumes/workspace/tp_landing/raw"
 }
