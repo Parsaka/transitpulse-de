@@ -1,0 +1,51 @@
+name: Databricks bundle
+
+# validate on every PR that touches the bundle; deploy the prod target on main.
+# Inactive until the repository variable DATABRICKS_HOST and the secret DATABRICKS_TOKEN exist
+# (Free Edition has no account API, so a personal access token is the only non-interactive path).
+
+on:
+  pull_request:
+    paths: ["databricks/**", ".github/workflows/databricks-bundle.yml"]
+  push:
+    branches: [main]
+    paths: ["databricks/**", ".github/workflows/databricks-bundle.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+  DATABRICKS_BUNDLE_ENV: prod
+
+jobs:
+  validate:
+    if: ${{ vars.DATABRICKS_HOST != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: databricks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle validate -t prod
+      - run: databricks bundle summary -t prod
+
+  deploy:
+    needs: validate
+    if: ${{ github.event_name != 'pull_request' && vars.DATABRICKS_HOST != '' }}
+    runs-on: ubuntu-latest
+    environment: databricks
+    concurrency:
+      group: databricks-bundle-prod
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: databricks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle deploy -t prod
+      - run: databricks bundle summary -t prod

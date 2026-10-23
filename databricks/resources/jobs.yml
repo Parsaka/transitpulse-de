@@ -1,0 +1,17 @@
+resources:
+  jobs:
+    transitpulse_refresh:
+      name: transitpulse-refresh-${bundle.target}
+      description: Triggers the Lakeflow pipeline so the silver layer is at most 15 minutes behind the lake.
+      schedule:
+        quartz_cron_expression: "0 */15 * * * ?"
+        timezone_id: Europe/Berlin
+        pause_status: ${var.schedule_pause_status}
+      max_concurrent_runs: 1
+      tasks:
+        - task_key: lakeflow
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.transitpulse_lakeflow.id}
+            full_refresh: false
+      email_notifications:
+        on_failure: []

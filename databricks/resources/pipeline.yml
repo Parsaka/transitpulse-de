@@ -1,0 +1,16 @@
+resources:
+  pipelines:
+    transitpulse_lakeflow:
+      name: transitpulse-lakeflow-${bundle.target}
+      catalog: ${var.catalog}
+      schema: silver
+      serverless: true
+      continuous: false
+      photon: true
+      channel: CURRENT
+      development: false # true in the dev target (databricks.yml)
+      configuration:
+        transitpulse.landing: /Volumes/${var.catalog}/landing/raw/raw
+      libraries:
+        - file:
+            path: ../src/pipelines/transitpulse_pipeline.py

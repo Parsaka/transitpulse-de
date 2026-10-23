@@ -1,0 +1,41 @@
+name: Static GTFS (weekly)
+
+# Lands the VBB static schedule (agency, routes, stops, trips, calendar) as Parquet in the Azure
+# lake and in the Databricks landing Volume. Free: public repository minutes, OIDC to Azure, the
+# Databricks token from the repository secrets. Inactive until AZURE_CLIENT_ID exists.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1,4" # Monday and Thursday 03:17 UTC, after VBB's twice-weekly update
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  land:
+    if: ${{ vars.AZURE_CLIENT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TP_LAKE_BACKEND: azure
+      TP_ADLS_ACCOUNT_URL: ${{ vars.ADLS_ACCOUNT_URL }}
+      TP_DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      TP_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      TP_LOG_FORMAT: json
+      TP_USER_AGENT: "transitpulse-de/0.1 (portfolio project; https://github.com/Parsaka/transitpulse-de)"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[azure]"
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Download VBB GTFS and land it as Parquet
+        run: transitpulse gtfs-static --feed vbb | tail -n 1 | tee "$GITHUB_STEP_SUMMARY"

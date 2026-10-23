@@ -24,14 +24,25 @@ class Settings(BaseSettings):
     # {"vbb": "http://host/vbb_sample.pb"}: replay a saved feed or point a smoke test at a fixture
     feed_urls: dict[str, str] = {}
     http_retries: int = 3
+    # Databricks Volume as a second sink (Free Edition cannot read the Azure lake). Empty = off.
+    databricks_host: str = ""  # https://dbc-....cloud.databricks.com
+    databricks_token: str = ""  # personal access token, from Key Vault in the Function
+    volume_path: str = "/Volumes/transitpulse/landing/raw"
 
     def lake(self) -> Lake:
-        return make_lake(
+        primary = make_lake(
             self.lake_backend,
             data_dir=self.data_dir,
             account_url=self.adls_account_url,
             container=self.lake_container,
         )
+        if self.databricks_host and self.databricks_token and self.databricks_token != "none":
+            from transitpulse.volume import MultiLake, VolumeLake
+
+            return MultiLake(
+                primary, VolumeLake(self.databricks_host, self.databricks_token, self.volume_path)
+            )
+        return primary
 
 
 def get_settings() -> Settings:

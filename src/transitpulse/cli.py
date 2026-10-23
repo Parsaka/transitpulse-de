@@ -1,4 +1,6 @@
-"""Command-line interface: ``transitpulse collect`` and ``transitpulse inspect``."""
+"""Command-line interface: ``transitpulse collect``, ``gtfs-static`` and ``inspect``."""
+
+# ruff: noqa: B008  (typer.Option in defaults is the typer idiom)
 
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from transitpulse import logging as tplog
 from transitpulse.collector import run_once
 from transitpulse.config import get_settings
 from transitpulse.feeds import FEEDS, get_feed
+from transitpulse.gtfs_static import STATIC_URLS, download, land_static_gtfs
 from transitpulse.gtfsrt.parse import parse_feed
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="TransitPulse DE collector")
@@ -52,6 +55,23 @@ def collect(
         if once or (runs and n >= runs):
             raise typer.Exit(code=0 if summary.status != "error" else 1)
         time.sleep(max(0.0, interval - summary.total_ms / 1000))
+
+
+@app.command("gtfs-static")
+def gtfs_static(
+    feed: str = typer.Option("vbb", help=f"one of {sorted(STATIC_URLS)}"),
+    zip_path: Path | None = typer.Option(None, help="use a downloaded zip instead of fetching"),
+    version: str | None = typer.Option(None, help="version label (default: today, UTC)"),
+) -> None:
+    """Download the static GTFS schedule and land it as Parquet (static/gtfs/...) in the lake."""
+    s = get_settings()
+    if feed not in STATIC_URLS:
+        raise typer.BadParameter(f"no static feed for {feed!r}; known: {sorted(STATIC_URLS)}")
+    data = (
+        zip_path.read_bytes() if zip_path else download(STATIC_URLS[feed], user_agent=s.user_agent)
+    )
+    res = land_static_gtfs(data, s.lake(), feed=feed, version=version)
+    typer.echo(json.dumps(asdict(res)))
 
 
 @app.command()

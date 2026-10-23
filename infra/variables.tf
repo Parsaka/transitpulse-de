@@ -95,3 +95,21 @@ variable "github_repository_id" {
   default     = 1430309278
   description = "Numeric GitHub repository ID (gh api repos/<owner>/<name> --jq .id); part of the OIDC subject."
 }
+
+variable "databricks_host" {
+  type        = string
+  default     = ""
+  description = "Databricks Free Edition workspace URL (https://dbc-....cloud.databricks.com). Empty = the Function writes the Azure lake only."
+}
+
+variable "databricks_token" {
+  type        = string
+  default     = "none"
+  sensitive   = true
+  description = "Personal access token for the Files API upload into the landing Volume, stored in Key Vault. 'none' disables the Volume sink."
+}
+
+variable "databricks_volume_path" {
+  type    = string
+  default = "/Volumes/transitpulse/landing/raw"
+}

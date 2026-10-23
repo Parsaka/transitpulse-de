@@ -45,3 +45,24 @@ def test_collect_rejects_too_fast_polling() -> None:
 def test_collect_unknown_feed() -> None:
     r = runner.invoke(app, ["collect", "--feed", "nope", "--once"])
     assert r.exit_code != 0
+
+
+def test_gtfs_static_from_zip(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        header = "agency_id,agency_name,agency_url,agency_timezone"
+        zf.writestr("agency.txt", header + "\n1,A,https://a,Europe/Berlin\n")
+    z = tmp_path / "gtfs.zip"
+    z.write_bytes(buf.getvalue())
+    monkeypatch.setenv("TP_DATA_DIR", str(tmp_path / "lake"))
+    r = runner.invoke(
+        app, ["gtfs-static", "--feed", "vbb", "--zip-path", str(z), "--version", "2026-10-23"]
+    )
+    assert r.exit_code == 0, r.stdout
+    assert json.loads(r.stdout.strip().splitlines()[-1])["tables"] == {"agency": 1}
+    assert (
+        tmp_path / "lake" / "static" / "gtfs" / "feed=vbb" / "version=2026-10-23" / "agency.parquet"
+    ).exists()
