@@ -25,13 +25,14 @@
   First prod build 47 nodes in 51 s. Measured: punctuality 98.4 % (day), pipeline SLO breached by
   the bootstrap failures (78.7 %), freshness target calibrated to 20 min. Weather impact moves to
   phase 5 (needs the weather feed, not landed yet).
-- [~] **Phase 4 – Observability** (2026-10-23): four SLOs with error budgets in the lakehouse
+- [x] **Phase 4 – Observability** (2026-10-23): four SLOs with error budgets in the lakehouse
   (collector executions synced from Log Analytics by `ops-sync`), alerts on three layers (Azure
   Monitor rule, Databricks job failure mail, dbt/freshness via Actions), public status site on
   Azure static website (`status.json`, status page, dbt docs), Grafana dashboard + provisioning
   script (needs the owner's Grafana Cloud sign-up), three incident drills with measured timelines
-  (docs/drills.md), cost page with real figures. Open: Grafana stack (owner), verified alert
-  email (owner), GitHub watchdog moved to phase 8 with the website.
+  (docs/drills.md), cost page with real figures. Verified end to end from CI on 2026-10-23
+  12:31 UTC. Open for the owner: Grafana Cloud sign-up (dashboard and script are ready), verified
+  alert email. GitHub watchdog moved to phase 8 with the website.
 - [ ] **Phase 5 – ML**: LightGBM delay-at-destination model with forward-looking forecast log,
   MLflow registry in Unity Catalog, network anomaly detector that raises an alert.
 - [ ] **Phase 6 – Measured optimisation**: snapshot vs delta, 60 s vs 120 s polling, OPTIMIZE and

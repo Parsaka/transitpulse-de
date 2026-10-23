@@ -62,7 +62,7 @@ the rule.
 | 12:12:11 | Alert **fired**, 28 min after the stop: the rule needs a full 15-minute window without a success, and then its next evaluation |
 | 12:13:20 | Fix: `az functionapp start` |
 | 12:14:15 | First successful execution after the start (the timer catches up at the next minute; the delta store simply continues, the 28 missed minutes are a gap in the raw data, nothing is corrupted) |
-| RESOLVED2_PLACEHOLDER | Alert auto-resolved |
+| 12:58:11 | Alert **auto-resolved**, 44 min after the first good execution (same lag as drill 1) |
 
 Findings: a dead collector is detected within 15 to 30 minutes by the Azure rule and, independently,
 by the silver freshness SLO (`slo_status.freshness_ok`) at the next pipeline refresh and by the
