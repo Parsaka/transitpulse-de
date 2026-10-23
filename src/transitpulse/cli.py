@@ -19,6 +19,7 @@ from transitpulse.config import get_settings
 from transitpulse.feeds import FEEDS, get_feed
 from transitpulse.gtfs_static import STATIC_URLS, download, land_static_gtfs
 from transitpulse.gtfsrt.parse import parse_feed
+from transitpulse.ops_sync import fetch_records, rows_from_query, write_windows
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="TransitPulse DE collector")
 
@@ -71,6 +72,18 @@ def gtfs_static(
         zip_path.read_bytes() if zip_path else download(STATIC_URLS[feed], user_agent=s.user_agent)
     )
     res = land_static_gtfs(data, s.lake(), feed=feed, version=version)
+    typer.echo(json.dumps(asdict(res)))
+
+
+@app.command("ops-sync")
+def ops_sync(
+    workspace_id: str = typer.Option(..., envvar="TP_LOG_ANALYTICS_WORKSPACE_ID"),
+    hours: int = typer.Option(3, help="look-back window; overlapping windows are overwritten"),
+) -> None:
+    """Pull collector executions from Log Analytics into the lake (raw/collector_runs)."""
+    s = get_settings()
+    rows = rows_from_query(fetch_records(workspace_id, hours))
+    res = write_windows(rows, s.lake())
     typer.echo(json.dumps(asdict(res)))
 
 

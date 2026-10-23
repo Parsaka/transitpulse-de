@@ -5,7 +5,8 @@
 --              15 minutes and takes about 3; measured age oscillates between 2 and 18 minutes)
 --   pipeline:  at least 99 % of pipeline updates in the last 30 days succeeded
 --   quality:   at most 1 % of records failed a warning expectation in the last 7 days
--- Phase 4 adds the collector SLO (Azure side) and the error budgets.
+--   collector: at least 99.5 % of collector executions succeeded (30 days)
+-- Error budgets per SLO live in slo_error_budget.
 
 with freshness as (
     select
@@ -23,6 +24,17 @@ pipeline as (
     from {{ ref('slo_pipeline_updates') }}
     where started_at >= current_timestamp() - interval 30 days
       and final_state is not null
+),
+
+collector as (
+    select
+        count(*) as runs_30d,
+        count(case when success then 1 end) as succeeded_30d,
+        round(count(case when success then 1 end) / nullif(count(*), 0), 4) as success_rate_30d,
+        max(started_at) as last_run_at,
+        round((unix_timestamp(current_timestamp()) - unix_timestamp(max(started_at))) / 60.0, 1) as last_run_age_min
+    from {{ source('silver', 'silver_collector_runs') }}
+    where started_at >= current_timestamp() - interval 30 days
 ),
 
 quality as (
@@ -50,7 +62,15 @@ select
     q.failed_7d,
     q.fail_rate_7d,
     0.01 as quality_target,
-    (coalesce(q.fail_rate_7d, 0) <= 0.01) as quality_ok
+    (coalesce(q.fail_rate_7d, 0) <= 0.01) as quality_ok,
+    c.runs_30d as collector_runs_30d,
+    c.succeeded_30d as collector_succeeded_30d,
+    c.success_rate_30d as collector_success_rate_30d,
+    0.995 as collector_target,
+    (coalesce(c.success_rate_30d, 0) >= 0.995) as collector_ok,
+    c.last_run_at as collector_last_run_at,
+    c.last_run_age_min as collector_last_run_age_min
 from freshness as f
 cross join pipeline as p
 cross join quality as q
+cross join collector as c

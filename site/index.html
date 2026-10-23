@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TransitPulse DE status</title>
+<meta name="description" content="Live status of the TransitPulse DE pipeline: SLOs, error budgets, network punctuality.">
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#6b6b66; --card:#ffffff; --ok:#1f7a4d; --bad:#b3261e; --line:#e4e4df; --accent:#1b4f9c; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#141513; --fg:#ececea; --muted:#a3a39d; --card:#1f201d; --ok:#5fcf8f; --bad:#ff7b72; --line:#30312d; --accent:#8ab4f8; } }
+  :root[data-theme="dark"] { --bg:#141513; --fg:#ececea; --muted:#a3a39d; --card:#1f201d; --ok:#5fcf8f; --bad:#ff7b72; --line:#30312d; --accent:#8ab4f8; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 48px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; } h2 { font-size: 1.05rem; margin: 28px 0 10px; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card .label { color:var(--muted); font-size:.82rem; text-transform: uppercase; letter-spacing:.04em; }
+  .card .value { font-size:1.6rem; font-weight:600; margin-top:2px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  table { width:100%; border-collapse: collapse; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; font-size:.92rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); } th { color:var(--muted); font-weight:500; } tr:last-child td { border-bottom:0; }
+  td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; } .bar > i { display:block; height:100%; background:var(--ok); }
+  .bar > i.bad { background: var(--bad); }
+  a { color: var(--accent); }
+  footer { margin-top:36px; font-size:.85rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>TransitPulse DE</h1>
+  <div class="muted">Public-transport punctuality of Berlin-Brandenburg (VBB), collected every minute, refreshed every 15 minutes. <span id="generated"></span></div>
+
+  <h2>Service level objectives</h2>
+  <div class="grid" id="slo"></div>
+
+  <h2>Error budgets (30 days, quality 7 days)</h2>
+  <table><thead><tr><th>SLO</th><th class="num">Target</th><th class="num">Achieved</th><th class="num">Events</th><th class="num">Bad</th><th>Budget left</th></tr></thead><tbody id="budget"></tbody></table>
+
+  <h2>Network right now</h2>
+  <table><thead><tr><th>Mode</th><th class="num">Active trips</th><th class="num">Stop events</th><th class="num">Avg delay (min)</th><th class="num">p90 (min)</th><th class="num">Punctual</th></tr></thead><tbody id="now"></tbody></table>
+
+  <h2>Punctuality per day (all modes)</h2>
+  <table><thead><tr><th>Day</th><th class="num">Scored stop events</th><th class="num">Late</th><th class="num">Cancelled</th><th class="num">Punctual</th><th class="num">Trips</th></tr></thead><tbody id="daily"></tbody></table>
+
+  <h2>Collector (Azure Function)</h2>
+  <table><thead><tr><th>Day</th><th class="num">Runs</th><th class="num">Success</th><th class="num">p50 ms</th><th class="num">p95 ms</th><th class="num">Rows written</th><th class="num">Delta reduction</th></tr></thead><tbody id="collector"></tbody></table>
+
+  <footer>
+    Data: VBB GTFS-Realtime (CC BY 4.0), DELFI/VBB static schedule (CC BY 4.0). Code and method:
+    <a href="https://github.com/Parsaka/transitpulse-de">github.com/Parsaka/transitpulse-de</a> ·
+    <a href="docs/index.html">dbt docs and lineage</a> · This page reads <a href="status.json">status.json</a>, written hourly by the dbt workflow.
+  </footer>
+</main>
+<script>
+const pct = v => v == null ? '–' : (v * 100).toFixed(1) + ' %';
+const num = v => v == null ? '–' : Number(v).toLocaleString('en-US');
+const okc = v => v ? 'ok' : 'bad';
+fetch('status.json', {cache: 'no-store'}).then(r => r.json()).then(s => {
+  document.getElementById('generated').textContent = 'Status generated ' + s.generated_at + '.';
+  const slo = s.slo;
+  const cards = [
+    ['Silver freshness', slo.freshness_age_min + ' min', slo.freshness_ok, 'target ≤ ' + slo.freshness_target_min + ' min'],
+    ['Pipeline success 30 d', pct(slo.success_rate_30d), slo.pipeline_ok, slo.succeeded_30d + ' of ' + slo.updates_30d + ' updates'],
+    ['Collector success 30 d', pct(slo.collector_success_rate_30d), slo.collector_ok, slo.collector_succeeded_30d + ' of ' + slo.collector_runs_30d + ' runs'],
+    ['Expectation failures 7 d', (slo.fail_rate_7d * 100).toFixed(3) + ' %', slo.quality_ok, num(slo.failed_7d) + ' of ' + num(slo.passed_7d + slo.failed_7d) + ' records'],
+  ];
+  document.getElementById('slo').innerHTML = cards.map(([l, v, ok, sub]) =>
+    `<div class="card"><div class="label">${l}</div><div class="value ${okc(ok)}">${v}</div><div class="muted">${sub} · ${ok ? 'OK' : 'breached'}</div></div>`).join('');
+  document.getElementById('budget').innerHTML = s.error_budget.map(b => {
+    const left = Math.max(0, Math.min(1, b.budget_remaining ?? 0));
+    return `<tr><td>${b.slo}</td><td class="num">${pct(b.target)}</td><td class="num ${okc(b.slo_ok)}">${pct(b.achieved)}</td><td class="num">${num(b.total_events)}</td><td class="num">${num(b.bad_events)}</td><td><div class="bar"><i class="${b.slo_ok ? '' : 'bad'}" style="width:${(left*100).toFixed(0)}%"></i></div><span class="muted">${b.budget_remaining == null ? '–' : (b.budget_remaining*100).toFixed(0) + ' % left'}</span></td></tr>`; }).join('');
+  document.getElementById('now').innerHTML = s.network_now.map(n =>
+    `<tr><td>${n.mode}</td><td class="num">${num(n.active_trips)}</td><td class="num">${num(n.stop_events)}</td><td class="num">${n.avg_delay_min}</td><td class="num">${n.p90_delay_min}</td><td class="num">${pct(n.punctuality_now)}</td></tr>`).join('');
+  document.getElementById('daily').innerHTML = s.punctuality_daily.filter(d => d.mode === '(all modes)').map(d =>
+    `<tr><td>${d.date_local}</td><td class="num">${num(d.scored_events)}</td><td class="num">${num(d.late_events)}</td><td class="num">${num(d.cancelled_events)}</td><td class="num">${pct(d.punctuality)}</td><td class="num">${num(d.trips)}</td></tr>`).join('');
+  document.getElementById('collector').innerHTML = s.collector_daily.map(c =>
+    `<tr><td>${c.run_date}</td><td class="num">${num(c.runs)}</td><td class="num">${pct(c.success_rate)}</td><td class="num">${num(c.p50_duration_ms)}</td><td class="num">${num(c.p95_duration_ms)}</td><td class="num">${num(c.rows_written)}</td><td class="num">${pct(c.avg_reduction)}</td></tr>`).join('');
+}).catch(e => { document.getElementById('generated').textContent = 'status.json could not be loaded: ' + e; });
+</script>
+</body>
+</html>

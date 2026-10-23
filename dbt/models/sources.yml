@@ -31,6 +31,15 @@ sources:
           warn_after: {count: 60, period: minute}
           error_after: {count: 4, period: hour}
       - name: silver_alerts
+      - name: silver_collector_runs
+        description: Collector executions in Azure, synced hourly from Log Analytics (transitpulse ops-sync).
+        loaded_at_field: started_at
+        freshness:
+          warn_after: {count: 90, period: minute}
+          error_after: {count: 6, period: hour}
+        columns:
+          - name: run_id
+            tests: [unique, not_null]
       - name: dim_agency
       - name: dim_routes
         columns:

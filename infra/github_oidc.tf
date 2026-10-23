@@ -62,3 +62,10 @@ resource "azurerm_role_assignment" "github_tfstate_reader" {
   role_definition_name = "Reader"
   principal_id         = azuread_service_principal.github.object_id
 }
+
+# CI publishes status.json and the dbt docs to the static website and lands collector metrics.
+resource "azurerm_role_assignment" "github_lake_writer" {
+  scope                = azurerm_storage_account.lake.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azuread_service_principal.github.object_id
+}

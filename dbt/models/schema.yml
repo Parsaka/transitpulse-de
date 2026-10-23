@@ -101,8 +101,32 @@ models:
           - dbt_utils.accepted_range:
               arguments: {min_value: 0, max_value: 1, inclusive: true}
 
+  - name: slo_collector_daily
+    columns:
+      - name: run_date
+        tests: [unique, not_null]
+      - name: success_rate
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+
+  - name: slo_error_budget
+    description: One row per SLO with consumed and remaining error budget.
+    columns:
+      - name: slo
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['collector', 'pipeline', 'freshness', 'quality']
+      - name: achieved
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+
   - name: slo_status
-    description: The three SLOs evaluated at build time (one row).
+    description: The four SLOs evaluated at build time (one row).
     columns:
       - name: evaluated_at
         tests: [not_null]

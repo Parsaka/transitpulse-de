@@ -23,6 +23,7 @@ TABLES = {
     f"{catalog}.{silver}.silver_stop_time_updates": "feed_ts",
     f"{catalog}.{silver}.silver_trips_gone": "feed_ts",
     f"{catalog}.{silver}.silver_alerts": "feed_ts",
+    f"{catalog}.{silver}.silver_collector_runs": "started_at",
     f"{catalog}.{silver}.silver_stop_time_latest": "feed_ts",
     f"{catalog}.{silver}.dim_agency": None,
     f"{catalog}.{silver}.dim_routes": None,

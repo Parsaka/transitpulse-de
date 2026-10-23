@@ -1,0 +1,102 @@
+{
+  "title": "TransitPulse DE",
+  "uid": "transitpulse-de",
+  "tags": ["transitpulse", "slo"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {"from": "now-24h", "to": "now"},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "SLO status",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 4},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}"},
+      "targets": [{
+        "refId": "A", "type": "json", "source": "url", "format": "table",
+        "url": "${STATUS_URL}/status.json", "root_selector": "error_budget",
+        "columns": [
+          {"selector": "slo", "text": "slo", "type": "string"},
+          {"selector": "achieved", "text": "achieved", "type": "number"},
+          {"selector": "slo_ok", "text": "ok", "type": "string"}
+        ]
+      }],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/achieved/"}, "colorMode": "background", "textMode": "value_and_name"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 2, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 0.99}]}}, "overrides": []},
+      "transformations": [{"id": "rowsToFields", "options": {"mappings": [{"fieldName": "slo", "handlerKey": "field.name"}, {"fieldName": "achieved", "handlerKey": "field.value"}]}}]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Collector executions per 15 min (Log Analytics)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "grafana-azure-monitor-datasource", "uid": "${DS_AZURE}"},
+      "targets": [{
+        "refId": "A", "queryType": "Azure Log Analytics",
+        "azureLogAnalytics": {
+          "resources": ["${LOG_ANALYTICS_RESOURCE_ID}"],
+          "resultFormat": "time_series",
+          "query": "AppRequests | where Name == 'collect' | summarize ok = countif(Success), failed = countif(not Success) by bin(TimeGenerated, 15m) | order by TimeGenerated asc"
+        }
+      }],
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}}}, "overrides": [{"matcher": {"id": "byName", "options": "failed"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}]}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Collector run duration p50 / p95 (ms)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "datasource": {"type": "grafana-azure-monitor-datasource", "uid": "${DS_AZURE}"},
+      "targets": [{
+        "refId": "A", "queryType": "Azure Log Analytics",
+        "azureLogAnalytics": {
+          "resources": ["${LOG_ANALYTICS_RESOURCE_ID}"],
+          "resultFormat": "time_series",
+          "query": "AppRequests | where Name == 'collect' and Success | summarize p50 = percentile(DurationMs, 50), p95 = percentile(DurationMs, 95) by bin(TimeGenerated, 15m) | order by TimeGenerated asc"
+        }
+      }]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Rows written per run and delta reduction (collector summaries)",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "grafana-azure-monitor-datasource", "uid": "${DS_AZURE}"},
+      "targets": [{
+        "refId": "A", "queryType": "Azure Log Analytics",
+        "azureLogAnalytics": {
+          "resources": ["${LOG_ANALYTICS_RESOURCE_ID}"],
+          "resultFormat": "time_series",
+          "query": "AppTraces | where Message startswith '{' | extend d = parse_json(Message) | where isnotempty(d.summary) | summarize rows_written = avg(toint(d.summary.n_written_stop_times)), reduction = avg(todouble(d.summary.reduction)) by bin(TimeGenerated, 15m) | order by TimeGenerated asc"
+        }
+      }],
+      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "reduction"}, "properties": [{"id": "unit", "value": "percentunit"}, {"id": "custom.axisPlacement", "value": "right"}]}]}
+    },
+    {
+      "id": 5, "type": "table", "title": "Network right now (status.json)",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}"},
+      "targets": [{
+        "refId": "A", "type": "json", "source": "url", "format": "table",
+        "url": "${STATUS_URL}/status.json", "root_selector": "network_now",
+        "columns": [
+          {"selector": "mode", "text": "mode", "type": "string"},
+          {"selector": "active_trips", "text": "active trips", "type": "number"},
+          {"selector": "avg_delay_min", "text": "avg delay min", "type": "number"},
+          {"selector": "punctuality_now", "text": "punctual", "type": "number"}
+        ]
+      }],
+      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "punctual"}, "properties": [{"id": "unit", "value": "percentunit"}, {"id": "decimals", "value": 1}]}]}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Punctuality per day, all modes (status.json)",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "${DS_INFINITY}"},
+      "targets": [{
+        "refId": "A", "type": "json", "source": "url", "format": "timeseries",
+        "url": "${STATUS_URL}/status.json", "root_selector": "punctuality_daily",
+        "filterExpression": "mode == '(all modes)'",
+        "columns": [
+          {"selector": "date_local", "text": "time", "type": "timestamp"},
+          {"selector": "punctuality", "text": "punctuality", "type": "number"}
+        ]
+      }],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0.9, "max": 1}, "overrides": []}
+    }
+  ]
+}
