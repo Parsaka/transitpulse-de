@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', liquid_clustered_by=['date_local', 'mode']) }}
 
 -- Punctuality per hour (Europe/Berlin), agency, mode and route: share of observed stop events
 -- with less than 6 minutes of delay, plus the delay distribution. Only observed events count
