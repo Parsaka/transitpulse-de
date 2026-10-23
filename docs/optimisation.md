@@ -26,7 +26,7 @@ pandas was a declared dependency but never imported; pyarrow does all the Parque
 | Metric | Before | After | Change |
 |---|---|---|---|
 | deployed `.python_packages` | 397 MB | 237 MB | −40 % |
-| cold start, first execution after a (re)start | 20,352 ms and 24,394 ms (two samples) | COLD_AFTER | |
+| cold start, first execution after a (re)start | 20,352 ms and 24,394 ms (two samples) | 6,026 ms (one sample, first execution after the 13:22 deploy) | more samples with the next restarts |
 
 ## 3. Polling interval: 60 s versus 120 s
 The schedule is an app setting (`TP_SCHEDULE`), changed with `terraform apply`. One hour each,
@@ -50,11 +50,11 @@ recomputed a group-by plus self-join over every update on each refresh. It is no
 table fed by `apply_changes` (SCD type 1, sequenced by `feed_ts`), so a refresh applies only the
 new updates.
 
-| Metric | Before (24 updates, 6 h) | After (AFTER_UPDATES) |
+| Metric | Before (24 updates, 6 h) | After (2 incremental updates, 13:30 and 13:45) |
 |---|---|---|
-| flow `silver_stop_time_latest` avg / max (s) | 124 / 149 | CDC_FLOW |
-| whole update p50 / max (min) | 3.50 / 4.03 | CDC_UPDATE |
-| rows in the table | 739,086 (10:00) | CDC_ROWS |
+| flow `silver_stop_time_latest` avg / max (s) | 124 / 149 | 96.5 / 101 (−22 %) |
+| whole update p50 / max (min) | 3.50 / 4.03 | measured after more updates |
+| rows in the table | 739,086 (10:00) | 1,061,499 (13:52), 1 file, no duplicate keys |
 
 ## 5. Warehouse: compaction and clustering
 Baseline layout showed that the Lakeflow pipeline already keeps the tables compact: bronze
@@ -65,10 +65,10 @@ compact at this size, so it was not applied; clustering the marts was measured i
 
 | Query (median ms, 5 runs) | Before | After |
 |---|---|---|
-| latest_by_hour_mode | 561 | SQL_AFTER_1 |
-| updates_one_day_trip_scan | 360 | SQL_AFTER_2 |
-| punctuality_hourly_filter | 341 | SQL_AFTER_3 |
-| network_now_full | 319 | SQL_AFTER_4 |
-| collector_runs_day | 356 | SQL_AFTER_5 |
+| latest_by_hour_mode | 561 | 505 |
+| updates_one_day_trip_scan | 360 | 371 |
+| punctuality_hourly_filter | 341 | 321 |
+| network_now_full | 319 | 322 |
+| collector_runs_day | 356 | 361 |
 
-Finding: FINDING_SQL
+Finding: no measurable change (all within run-to-run noise of about ±50 ms); at a few MB per table the serverless warehouse is bound by request overhead, not by data layout. The clustering stays because the tables grow by about 1.5 M stop-time rows a day; the benchmark is re-run monthly.
