@@ -21,6 +21,7 @@ locals {
     main         = "ref:refs/heads/main"
     pull_request = "pull_request"
     env_azure    = "environment:azure"
+    env_dbx      = "environment:databricks" # dbt prod job (Azure login for ops-sync + static site)
   }
   github_subjects = merge(
     { for k, v in local.github_claim_tails : "${k}-plain" => "${local.github_repo_plain}:${v}" },
