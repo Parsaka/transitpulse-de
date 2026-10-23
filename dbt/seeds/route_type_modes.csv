@@ -1,0 +1,9 @@
+route_type,mode,mode_de,sort_order
+100,regional rail,Regionalbahn,1
+106,regional express,Regionalexpress,1
+109,S-Bahn,S-Bahn,2
+400,U-Bahn,U-Bahn,3
+900,tram,Straßenbahn,4
+700,bus,Bus,5
+3,bus,Bus,5
+1000,ferry,Fähre,6

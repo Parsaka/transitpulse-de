@@ -1,0 +1,112 @@
+name: dbt
+
+# Pull requests: slim CI (only modified models and their children, deferred to the prod manifest
+# that the last prod build left in the landing Volume) into the tp_gold_ci schema.
+# main and hourly: source freshness, full build on prod, docs generated and published to GitHub
+# Pages, manifest uploaded for the next slim CI run.
+# Inactive until DATABRICKS_HOST (variable) and DATABRICKS_TOKEN (secret) exist.
+
+on:
+  pull_request:
+    paths: ["dbt/**", ".github/workflows/dbt.yml"]
+  push:
+    branches: [main]
+    paths: ["dbt/**", ".github/workflows/dbt.yml"]
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+  DBT_PROFILES_DIR: .
+  MANIFEST_URL: ${{ vars.DATABRICKS_HOST }}/api/2.0/fs/files/Volumes/workspace/tp_landing/raw/ops/dbt/manifest.json
+
+jobs:
+  slim-ci:
+    if: ${{ github.event_name == 'pull_request' && vars.DATABRICKS_HOST != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install "dbt-databricks>=1.10,<1.11"
+      - run: dbt deps
+      - name: Fetch the prod manifest from the Volume (falls back to a full build)
+        run: |
+          mkdir -p prod-state
+          code=$(curl -s -o prod-state/manifest.json -w "%{http_code}" -H "Authorization: Bearer $DATABRICKS_TOKEN" "$MANIFEST_URL")
+          echo "manifest fetch: HTTP $code"
+          [ "$code" = "200" ] || rm -f prod-state/manifest.json
+      - name: dbt build (modified+ deferred to prod, or everything without a manifest)
+        run: |
+          if [ -f prod-state/manifest.json ]; then
+            dbt build --target ci --select state:modified+ --defer --state prod-state --favor-state
+          else
+            dbt build --target ci
+          fi
+
+  prod:
+    if: ${{ github.event_name != 'pull_request' && vars.DATABRICKS_HOST != '' }}
+    runs-on: ubuntu-latest
+    environment: databricks
+    concurrency:
+      group: dbt-prod
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install "dbt-databricks>=1.10,<1.11"
+      - run: dbt deps
+      - name: Source freshness (warn is fine, error fails the run)
+        run: dbt source freshness --target prod
+      - run: dbt build --target prod
+      - run: dbt docs generate --target prod --static
+      - name: Publish the manifest for slim CI
+        run: |
+          curl -s -o /dev/null -w "manifest upload: HTTP %{http_code}\n" -X PUT -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            -H "Content-Type: application/octet-stream" --data-binary @target/manifest.json "$MANIFEST_URL?overwrite=true"
+      - name: Prepare the docs site
+        run: |
+          mkdir -p site
+          cp target/static_index.html site/index.html
+          cp target/manifest.json target/catalog.json site/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: dbt/site
+          retention-days: 14
+      - if: ${{ vars.PAGES_ENABLED == 'true' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dbt/site
+
+  # GitHub Pages is refused on a private repository with the Free plan; set the repository
+  # variable PAGES_ENABLED=true once the repository is public (docs/dbt.md).
+  pages:
+    needs: prod
+    if: ${{ github.event_name != 'pull_request' && vars.PAGES_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

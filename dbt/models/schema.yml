@@ -1,0 +1,139 @@
+version: 2
+
+models:
+  - name: stg_stop_events
+    description: Last prediction per (trip, service date, stop), enriched with route, mode, agency.
+    columns:
+      - name: trip_id
+        tests: [not_null]
+      - name: event_ts
+        tests: [not_null]
+      - name: mode
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['regional rail', 'regional express', 'S-Bahn', 'U-Bahn', 'tram', 'bus', 'ferry', 'other']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [feed, trip_id, start_date, stop_sequence, stop_id]
+
+  - name: stg_trips
+    description: One row per realtime trip with first/last observed delay and completion.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [feed, trip_id, start_date]
+    columns:
+      - name: n_stops
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 1}
+
+  - name: mart_punctuality_hourly
+    description: Punctuality (share of observed stop events under 6 min delay) per local hour, agency, mode, route.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [hour_local, agency_name, mode, route_id]
+    columns:
+      - name: punctuality
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+      - name: stop_events
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 1}
+
+  - name: mart_punctuality_daily
+    columns:
+      - name: punctuality
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+
+  - name: mart_delay_propagation
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [service_date, agency_name, mode, route_id]
+    columns:
+      - name: share_grew
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+      - name: trips
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 1}
+
+  - name: mart_cancellations_daily
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [service_date, agency_name, mode, route_id]
+    columns:
+      - name: cancellation_rate
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+
+  - name: mart_network_now
+    description: Active trips, delay and punctuality right now per mode (plus the network total).
+    columns:
+      - name: mode
+        tests: [unique, not_null]
+      - name: punctuality_now
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+
+  - name: slo_pipeline_updates
+    columns:
+      - name: update_id
+        tests: [unique, not_null]
+
+  - name: slo_expectations_daily
+    columns:
+      - name: fail_rate
+        tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0, max_value: 1, inclusive: true}
+
+  - name: slo_status
+    description: The three SLOs evaluated at build time (one row).
+    columns:
+      - name: evaluated_at
+        tests: [not_null]
+
+seeds:
+  - name: route_type_modes
+    description: GTFS route_type codes used by VBB mapped to a mode name (extended route types).
+    columns:
+      - name: route_type
+        tests: [unique, not_null]
+
+exposures:
+  - name: health_snapshot
+    type: application
+    maturity: medium
+    url: https://github.com/Parsaka/transitpulse-de/blob/main/databricks/src/jobs/health_snapshot.py
+    description: Job task writing ops/health.json after each pipeline refresh.
+    depends_on:
+      - source('ops', 'lakeflow_event_log')
+    owner:
+      name: Parsa Kamali
+      email: parsa.kamali.data@gmail.com
+  - name: project_status_page
+    type: dashboard
+    maturity: low
+    url: https://github.com/Parsaka/transitpulse-de
+    description: Live status and punctuality figures on the project page (phase 8).
+    depends_on:
+      - ref('mart_network_now')
+      - ref('mart_punctuality_daily')
+      - ref('slo_status')
+    owner:
+      name: Parsa Kamali
+      email: parsa.kamali.data@gmail.com

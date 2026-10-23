@@ -65,3 +65,12 @@ Your user needs `Storage Blob Data Contributor` on the lake account (`admin_prin
 - Backfill the Volume from the lake (if the Volume was ever emptied): copy `raw/` blobs with
   `BlobLake.get` -> `VolumeLake.put` (see the phase-2 PR for the one-off script), then
   `transitpulse gtfs-static --feed vbb` for the dimensions.
+
+## dbt
+- Hourly prod build in GitHub Actions (`dbt.yml`); a failed run means a test or freshness error:
+  open the run, the failing node is named. Rebuild by hand: `dbt build --target prod` with the
+  env vars from `docs/dbt.md`.
+- Slim CI writes into `tp_gold_ci` / `tp_gold_ci_ops`; drop them when they get in the way
+  (`databricks schemas delete workspace.tp_gold_ci --force`).
+- `slo_status` shows the three SLOs; `slo_pipeline_updates` lists every pipeline update with its
+  state and duration, `slo_expectations_daily` the expectation counts per day.

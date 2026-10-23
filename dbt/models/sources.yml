@@ -1,0 +1,59 @@
+version: 2
+
+sources:
+  - name: silver
+    description: Lakeflow pipeline output (bundle `databricks/`), refreshed every 15 minutes.
+    database: workspace
+    schema: tp_silver
+    loader: Lakeflow Declarative Pipeline transitpulse-lakeflow-prod
+    tables:
+      - name: silver_stop_time_updates
+        description: One row per observed change of a stop-time prediction (trip, stop, poll).
+        loaded_at_field: feed_ts
+        freshness:
+          warn_after: {count: 30, period: minute}
+          error_after: {count: 2, period: hour}
+        columns:
+          - name: trip_id
+            tests: [not_null]
+          - name: feed_ts
+            tests: [not_null]
+      - name: silver_stop_time_latest
+        description: Latest prediction per (feed, trip, service date, stop); the current network state.
+        loaded_at_field: feed_ts
+        freshness:
+          warn_after: {count: 30, period: minute}
+          error_after: {count: 2, period: hour}
+      - name: silver_trips_gone
+        description: Trips that left the realtime feed (completed or dropped).
+        loaded_at_field: feed_ts
+        freshness:
+          warn_after: {count: 60, period: minute}
+          error_after: {count: 4, period: hour}
+      - name: silver_alerts
+      - name: dim_agency
+      - name: dim_routes
+        columns:
+          - name: route_id
+            tests: [unique, not_null]
+      - name: dim_stops
+        columns:
+          - name: stop_id
+            tests: [unique, not_null]
+      - name: dim_trips
+        columns:
+          - name: trip_id
+            tests: [unique, not_null]
+      - name: dim_calendar
+      - name: dim_calendar_dates
+
+  - name: ops
+    description: Published pipeline event log (expectation metrics, update states).
+    database: workspace
+    schema: tp_ops
+    tables:
+      - name: lakeflow_event_log
+        loaded_at_field: timestamp
+        freshness:
+          warn_after: {count: 30, period: minute}
+          error_after: {count: 2, period: hour}

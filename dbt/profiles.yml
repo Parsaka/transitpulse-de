@@ -1,0 +1,28 @@
+# Credentials come from the environment only (DATABRICKS_HOST, DATABRICKS_TOKEN); nothing here is secret.
+transitpulse:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: databricks
+      catalog: workspace
+      schema: tp_gold_dev
+      host: "{{ env_var('DATABRICKS_HOST') | replace('https://', '') | replace('/', '') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/a25edf12d5fff14a') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      threads: 4
+    ci:
+      type: databricks
+      catalog: workspace
+      schema: tp_gold_ci
+      host: "{{ env_var('DATABRICKS_HOST') | replace('https://', '') | replace('/', '') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/a25edf12d5fff14a') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      threads: 4
+    prod:
+      type: databricks
+      catalog: workspace
+      schema: tp_gold
+      host: "{{ env_var('DATABRICKS_HOST') | replace('https://', '') | replace('/', '') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/a25edf12d5fff14a') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      threads: 4

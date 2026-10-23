@@ -17,8 +17,14 @@
   rows. Findings in ADR 0002 (catalog only via UI, SQL statement API unavailable, events API
   without details). Open: token rotation in 90 days; bundle deploy from CI runs on the first push
   to main.
-- [ ] **Phase 3 – dbt gold**: punctuality, delay propagation, cancellations, weather impact, SLO
-  tables; tests, source freshness, docs on GitHub Pages, slim CI on PRs.
+- [x] **Phase 3 – dbt gold** (2026-10-23): dbt-databricks on the serverless warehouse; staging
+  views, marts (punctuality hourly/daily, network now, delay propagation, cancellations), ops
+  models from the pipeline event log and `slo_status` with three SLOs; seed for VBB route types;
+  34 tests + 2 singular + source freshness; slim CI on PRs deferred to the prod manifest kept in
+  the Volume; hourly prod build; static docs as an artifact (Pages waits for a public repo).
+  First prod build 47 nodes in 51 s. Measured: punctuality 98.4 % (day), pipeline SLO breached by
+  the bootstrap failures (78.7 %), freshness target calibrated to 20 min. Weather impact moves to
+  phase 5 (needs the weather feed, not landed yet).
 - [ ] **Phase 4 – Observability**: three SLOs with error budget, five alerts (Azure Monitor,
   Databricks SQL Alert, expectations, job failure, GitHub watchdog), Grafana Cloud public dashboard,
   three documented incident drills, cost page.
