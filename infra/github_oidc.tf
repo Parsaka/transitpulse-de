@@ -69,3 +69,16 @@ resource "azurerm_role_assignment" "github_lake_writer" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azuread_service_principal.github.object_id
 }
+
+# Terraform in CI reads the other application objects (the Grafana identity) through Microsoft
+# Graph; a service principal may only read its own application unless it holds this read-only
+# Graph role. Granting it needs an admin (the owner's laptop applies it once).
+data "azuread_service_principal" "msgraph" {
+  client_id = "00000003-0000-0000-c000-000000000000"
+}
+
+resource "azuread_app_role_assignment" "github_application_read" {
+  app_role_id         = data.azuread_service_principal.msgraph.app_role_ids["Application.Read.All"]
+  principal_object_id = azuread_service_principal.github.object_id
+  resource_object_id  = data.azuread_service_principal.msgraph.object_id
+}
