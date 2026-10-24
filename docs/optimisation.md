@@ -26,25 +26,35 @@ pandas was a declared dependency but never imported; pyarrow does all the Parque
 | Metric | Before | After | Change |
 |---|---|---|---|
 | deployed `.python_packages` | 397 MB | 237 MB | −40 % |
-| cold start, first execution after a (re)start | 20,352 ms and 24,394 ms (two samples) | 6,026 ms (one sample, first execution after the 13:22 deploy) | more samples with the next restarts |
+| cold start, first execution after a (re)start | 20,352 and 24,394 ms (two samples) | 6,026, 5,846 and 3,123 ms (three restarts: deploy 13:22, setting change 13:59, revert 19:31) | about −75 % |
 
 ## 3. Polling interval: 60 s versus 120 s
-The schedule is an app setting (`TP_SCHEDULE`). The 120 s run started 13:59 UTC on 2026-10-23 and a
-one-off GitHub cron (`polling-experiment-revert.yml`) sets it back to every minute at 15:40 UTC,
-so the experiment does not depend on a laptop. Comparison windows: 60 s = 13:25–13:59 (and
-12:20–13:05), 120 s = 13:59–15:40. Traffic differs between the hours, so rows per hour are
-indicative, the per-run figures are not. Results are filled in after the window closes.
+The schedule is an app setting (`TP_SCHEDULE`). The 120 s run started 13:59 UTC on 2026-10-23;
+a one-off GitHub cron was meant to revert it at 15:40 but GitHub ran it at 19:31 (scheduled
+workflows are best effort; a lesson for anything time-critical: use Azure's own scheduler), so
+the window was 14:00 to 19:30. All figures from `scripts/measure_collector.py` and the
+`FunctionExecutionUnits` metric; traffic differs between hours, so per-hour rows are indicative.
 
-| Metric | 60 s (WIN60) | 120 s (WIN120) |
-|---|---|---|
-| executions per hour | P60_EXEC | P120_EXEC |
-| rows written per hour | P60_ROWS | P120_ROWS |
-| bytes written per hour | P60_BYTES | P120_BYTES |
-| delta reduction | P60_RED | P120_RED |
-| feed age at fetch p50 (s) | P60_AGE | P120_AGE |
-| GB-seconds per hour (Azure metric) | P60_GBS | P120_GBS |
+| Metric | 60 s, 13:25–13:59 | 120 s, 14–15 h | 120 s, 15–17 h | 120 s, 17–19 h | 60 s, 20–22 h | 60 s, next day 9–11 h |
+|---|---|---|---|---|---|---|
+| executions per hour | 62 | 32 | 30 | 30 | 61 | 61 |
+| run p50 (ms) | 3,925 | 4,503 | 4,218 | 3,673 | 2,609 | 3,087 |
+| rows written per run | 2,613 | 6,221 | 5,067 | 3,751 | 1,116 | 2,024 |
+| rows written per hour | 161,531 | 198,815 | 154,325 | 113,897 | 67,636 | 122,667 |
+| bytes written per hour | 2.77 MB | 2.64 MB | 2.18 MB | 1.63 MB | 1.29 MB | 2.00 MB |
+| delta reduction | 98.6 % | 96.6 % | 97.0 % | 97.3 % | 99.0 % | 98.5 % |
+| feed age at fetch p50 (s) | 24 | 15.6 | 14 | 17 | 16.5 | 17.5 |
+| GB-s per hour (metric) | 200 (13 h, mixed code) | 110 | 93–99 | 70–81 | 118–125 | 144 |
 
-Decision: DECISION_POLLING
+Reading: halving the polls halves the executions and cuts GB-seconds by roughly a third (the
+run itself gets longer because each run carries twice the changes: run p50 4.2–4.5 s against
+3.1–3.9 s). What is lost is not visible in these totals: a prediction that changes twice within
+two minutes is written once at 120 s, so the per-stop history is coarser; the lake size and the
+rows per hour move with the traffic of the hour more than with the interval.
+
+Decision: **keep 60 s.** The saving (about 35 % of GB-seconds) has no monetary value at 13 % of
+the free grant, and the one-minute cadence is the product's promise on the status page; the knob
+stays documented for a future feed with heavier polls (gtfs.de nationwide, 8 MB per fetch).
 
 ## 4. Pipeline: latest-state table as AUTO CDC instead of a materialized view
 `silver_stop_time_latest` (latest prediction per trip and stop) was a materialized view that
@@ -55,7 +65,7 @@ new updates.
 | Metric | Before (24 updates, 6 h) | After (2 incremental updates, 13:30 and 13:45) |
 |---|---|---|
 | flow `silver_stop_time_latest` avg / max (s) | 124 / 149 | 96.5 / 101 (−22 %) |
-| whole update p50 / max (min) | 3.50 / 4.03 | measured after more updates |
+| whole update p50 / max (min) | 3.50 / 4.03 | see slo_pipeline_updates after a week of incremental runs |
 | rows in the table | 739,086 (10:00) | 1,061,499 (13:52), 1 file, no duplicate keys |
 
 ## 5. Warehouse: compaction and clustering

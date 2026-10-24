@@ -35,8 +35,11 @@
   alert email. GitHub watchdog moved to phase 8 with the website.
 - [ ] **Phase 5 – ML**: LightGBM delay-at-destination model with forward-looking forecast log,
   MLflow registry in Unity Catalog, network anomaly detector that raises an alert.
-- [ ] **Phase 6 – Measured optimisation**: snapshot vs delta, 60 s vs 120 s polling, OPTIMIZE and
-  liquid clustering, Photon and cluster size (Tier B), each with a before/after table.
+- [x] **Phase 6 – Measured optimisation** (2026-10-23/24, docs/optimisation.md): parallel uploads
+  and warm clients (collector p50 −20 %, p95 −31 %), pandas removed (package −40 %, cold start
+  about −75 %), latest-state table as AUTO CDC (flow −22 %), mart clustering (no measurable gain,
+  recorded), 60 s versus 120 s polling over 5.5 hours (−35 % GB-s, decision: keep 60 s). Photon and
+  cluster size wait for Tier B (phase 7).
 - [ ] **Phase 7 – Tier B (two weeks, student credit)**: Azure Databricks Premium via Terraform,
   Event Hubs (Kafka endpoint) → Structured Streaming, DBU cost from system tables, then destroy.
 - [ ] **Phase 8 – Scale and publish**: gtfs.de nationwide feed, website page with live status,
