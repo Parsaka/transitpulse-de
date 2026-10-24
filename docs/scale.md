@@ -12,11 +12,21 @@ from Log Analytics run summaries, Azure Monitor metrics and the Databricks job r
 | Stop-time updates per fetch | 122,000 to 125,000 | VBB as before + 191,000 to 412,000 (gtfs.de) |
 | Rows written per minute | 1,100 to 2,200 (VBB) | VBB as before + about 19,500 (gtfs.de, second poll; first cold poll 412,352) |
 | Run time per poll | 2.8 to 3.5 s (VBB) | VBB 3.0 to 3.3 s; gtfs.de 6.2 s (cold) and 9.4 s |
-| Function execution units | 131 to 148 GB-s per hour (about 1,750 GB-s per day, 13 % of the free grant) | 555 GB-s in the first, partial hour (33 minutes with both feeds); a full hour follows below once measured |
+| Function execution units | 131 to 148 GB-s per hour (about 1,750 GB-s per day, 13 % of the free grant) | 729 GB-s for 16:03 to 17:03 UTC with both feeds in 44 of the 60 minutes, so about **940 GB-s per hour** at steady state (about 13 GB-s per gtfs.de poll) |
 | Executions | 60 per hour | 60 per hour (one timer, both feeds) |
 
 The delta store does for the nationwide feed what it did for VBB: one minute after the cold
 poll about 95 % of the stop-time updates were unchanged and not written.
+
+### Decision: the nationwide feed gets its own timer, every 5 minutes
+940 GB-s per hour is about 22,600 GB-s per day or 680,000 GB-s per month: 1.7 times the free
+grant (400,000 GB-s), so roughly 4 EUR per month at the Consumption price. That breaks the budget
+rule (at most 2 EUR per month). The nationwide feed therefore moved to a second timer
+(`collect_national`, `TP_NATIONAL_SCHEDULE`, default every 5 minutes): 12 polls per hour at about
+13 GB-s plus the regional minute timer at about 148 GB-s per hour gives about 300 GB-s per hour,
+about 220,000 GB-s per month, 55 % of the grant, 0 EUR. The price is a punctuality measure that
+is up to 5 minutes staler for the nationwide feed (the last prediction before a stop's scheduled
+time), which `mart_feed_daily` reports separately anyway. Measured first, then decided.
 
 ## Static schedule (gtfs.de, 276 MB zip, landed 16:32 UTC from a laptop in about 3 minutes)
 | Table | Rows |

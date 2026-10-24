@@ -192,6 +192,8 @@ resource "azurerm_linux_function_app" "collector" {
     TP_SCHEDULE                        = var.schedule
     TP_WEATHER_SCHEDULE                = var.weather_schedule
     TP_FEEDS                           = var.feeds
+    TP_NATIONAL_SCHEDULE               = var.national_schedule
+    TP_NATIONAL_FEEDS                  = var.national_feeds
     TP_LAKE_BACKEND                    = "azure"
     TP_ADLS_ACCOUNT_URL                = azurerm_storage_account.lake.primary_blob_endpoint
     TP_LAKE_CONTAINER                  = azurerm_storage_data_lake_gen2_filesystem.lake.name
