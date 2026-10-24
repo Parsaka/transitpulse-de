@@ -34,7 +34,7 @@ put 54.4 s of it in `delta`. Cause: for every trip that had left the feed, the d
 all stop fingerprints to drop that trip's keys, O(store x gone): 1,796 gone trips x 390k
 fingerprints per poll. With one grouping pass (O(store + gone)) the same step takes 1.26 s instead
 of 67.4 s on synthetic data of the production shape (56k trips, 1,800 gone, 8.5 % changed rows);
-production numbers are in docs/optimisation.md once measured. The 1-minute polls hid the problem
+in production the first poll after the deploy took 7.0 s with 1.63 s in `delta` (17:35 UTC, docs/optimisation.md). The 1-minute polls hid the problem
 because only about 120 trips left the feed per minute.
 
 ## Static schedule (gtfs.de, 276 MB zip, landed 16:32 UTC from a laptop in about 3 minutes)

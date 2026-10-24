@@ -98,10 +98,10 @@ its keys from that index: O(store + gone).
 | | Before | After |
 |---|---|---|
 | Synthetic, production shape (56k trips, 390k rows, 1,800 gone, 8.5 % changed), laptop | 67.4 s | **1.26 s** |
-| Production, gtfs.de 5-minute poll, `delta` step | 54.4 s (17:20 UTC) | see the row added after the deploy |
-| Production, whole poll | 57.8 to 60.5 s | |
+| Production, gtfs.de 5-minute poll, `delta` step | 54.4 s (17:20 UTC, 1,796 gone) | **1.63 s** (17:35 UTC, 1,682 gone) |
+| Production, whole poll | 57.8 to 60.5 s | **7.0 s** (32,239 rows written) |
 
 Why it matters for cost: a 60-second poll every five minutes is about 60 GB-s per poll on the
-Consumption plan, more than the minute timer had cost; after the fix a poll is back in the
-10-second range. The timer stays at 5 minutes until the next full-hour `FunctionExecutionUnits`
+Consumption plan, more than the minute timer had cost; after the fix a poll takes 7 s,
+measured on the first poll after the deploy. The timer stays at 5 minutes until the next full-hour `FunctionExecutionUnits`
 reading confirms the arithmetic in docs/scale.md.
