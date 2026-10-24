@@ -47,7 +47,7 @@ docker run -d --name tp-smoke-func --network $NET \
   -e FUNCTIONS_WORKER_RUNTIME=python \
   -e PYTHON_ISOLATE_WORKER_DEPENDENCIES=1 \
   -e "AzureWebJobsStorage=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=$AZURITE_KEY;BlobEndpoint=http://tp-smoke-azurite:10000/devstoreaccount1;QueueEndpoint=http://tp-smoke-azurite:10001/devstoreaccount1;TableEndpoint=http://tp-smoke-azurite:10002/devstoreaccount1;" \
-  -e TP_SCHEDULE="*/15 * * * * *" -e TP_FEEDS=vbb -e TP_LAKE_BACKEND=local -e TP_DATA_DIR=/tmp/tp -e TP_LOG_FORMAT=json \
+  -e TP_SCHEDULE="*/15 * * * * *" -e TP_FEEDS=vbb -e TP_NATIONAL_SCHEDULE="0 0 5 31 2 *" -e TP_NATIONAL_FEEDS=gtfsde -e TP_LAKE_BACKEND=local -e TP_DATA_DIR=/tmp/tp -e TP_LOG_FORMAT=json \
   -e 'TP_FEED_URLS={"vbb":"http://tp-smoke-fixture:8000/vbb_sample.pb"}' \
   -v "$WORK/wwwroot:/home/site/wwwroot" "$IMAGE" >/dev/null
 

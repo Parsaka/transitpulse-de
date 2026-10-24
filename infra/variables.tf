@@ -62,8 +62,20 @@ variable "status_cors_origins" {
 
 variable "feeds" {
   type        = string
-  default     = "vbb,gtfsde" # phase 8: VBB regional + gtfs.de nationwide
-  description = "Comma-separated feeds the Function collects (vbb, gtfsde)."
+  default     = "vbb"
+  description = "Comma-separated feeds the minute timer collects (regional, cheap per poll)."
+}
+
+variable "national_feeds" {
+  type        = string
+  default     = "gtfsde"
+  description = "Feeds of the slower nationwide timer (about 13 GB-s per poll, docs/scale.md)."
+}
+
+variable "national_schedule" {
+  type        = string
+  default     = "0 */5 * * * *"
+  description = "NCRONTAB schedule of the nationwide timer. Every minute would exceed the free Functions grant."
 }
 
 variable "schedule" {

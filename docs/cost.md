@@ -14,6 +14,7 @@ Figures below come from Azure Cost Management and Azure Monitor metrics, not fro
 | **Total** | **0.0085** | about **0.17 EUR per month** at this rate |
 
 Function consumption (metric `FunctionExecutionUnits`, 24 h to 2026-10-23 10:00 UTC):
+(before the nationwide feed; with gtfs.de on its own 5-minute timer the estimate is about 7,200 GB-s per day, 55 % of the grant, docs/scale.md)
 1,795,925,888 MB-ms per day = about **1,750 GB-s per day**, about 52,600 GB-s per month =
 **13 % of the free grant** (400,000 GB-s). Execution count about 1,440 per day = 0.14 % of the
 free 1 M. Run duration is the lever: p50 4.2 s with the Volume upload versus 1.9 s before it

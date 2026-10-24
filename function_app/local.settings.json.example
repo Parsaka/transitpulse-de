@@ -6,6 +6,8 @@
     "TP_SCHEDULE": "0 * * * * *",
     "TP_WEATHER_SCHEDULE": "0 7 * * * *",
     "TP_FEEDS": "vbb",
+    "TP_NATIONAL_SCHEDULE": "0 */5 * * * *",
+    "TP_NATIONAL_FEEDS": "gtfsde",
     "TP_LAKE_BACKEND": "local",
     "TP_DATA_DIR": "/tmp/transitpulse",
     "TP_LOG_FORMAT": "json",

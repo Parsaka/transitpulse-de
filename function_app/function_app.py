@@ -47,18 +47,32 @@ def collect_all(feeds: str) -> list[RunSummary]:
     return summaries
 
 
-@app.timer_trigger(
-    schedule="%TP_SCHEDULE%", arg_name="timer", run_on_startup=False, use_monitor=True
-)
-def collect(timer: func.TimerRequest) -> None:
+def _collect_or_raise(timer: func.TimerRequest, feeds: str) -> None:
     if timer.past_due:
         log.warning("timer is past due; running anyway")
-    summaries = collect_all(os.environ.get("TP_FEEDS", "vbb"))
+    summaries = collect_all(feeds)
     failed = [s for s in summaries if s.status == "error"]
     if failed:
         # Raise so the host records a failed execution (metric alert + Monitor); the summaries
         # were already logged with full detail by the collector.
         raise RuntimeError(f"{len(failed)} of {len(summaries)} feed runs failed: {failed[0].error}")
+
+
+@app.timer_trigger(
+    schedule="%TP_SCHEDULE%", arg_name="timer", run_on_startup=False, use_monitor=True
+)
+def collect(timer: func.TimerRequest) -> None:
+    """Regional feeds (VBB), every minute."""
+    _collect_or_raise(timer, os.environ.get("TP_FEEDS", "vbb"))
+
+
+@app.timer_trigger(
+    schedule="%TP_NATIONAL_SCHEDULE%", arg_name="timer", run_on_startup=False, use_monitor=True
+)
+def collect_national(timer: func.TimerRequest) -> None:
+    """Nationwide feed (gtfs.de), on its own slower timer: at 60 s it needs about 13 GB-s per
+    poll and would exceed the free grant (docs/scale.md); every 5 minutes it stays well inside."""
+    _collect_or_raise(timer, os.environ.get("TP_NATIONAL_FEEDS", "gtfsde"))
 
 
 @app.timer_trigger(
