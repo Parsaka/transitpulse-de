@@ -31,6 +31,12 @@ sources:
           warn_after: {count: 60, period: minute}
           error_after: {count: 4, period: hour}
       - name: silver_alerts
+      - name: silver_weather_hourly
+        description: Open-Meteo hourly weather per grid point; latest fetch per point and hour (observations replace forecasts).
+        loaded_at_field: fetched_at
+        freshness:
+          warn_after: {count: 3, period: hour}
+          error_after: {count: 12, period: hour}
       - name: silver_collector_runs
         description: Collector executions in Azure, synced hourly from Log Analytics (transitpulse ops-sync).
         loaded_at_field: started_at
@@ -66,3 +72,13 @@ sources:
         freshness:
           warn_after: {count: 30, period: minute}
           error_after: {count: 2, period: hour}
+      - name: forecast_log
+        description: Delay predictions for trips still in the feed, one row per trip and scoring run (score_delay_model.py).
+        loaded_at_field: predicted_at
+        freshness:
+          warn_after: {count: 45, period: minute}
+          error_after: {count: 3, period: hour}
+      - name: network_anomalies
+        description: One row per anomaly check (detect_anomalies.py); is_anomaly flags an unusually late network.
+      - name: model_metrics
+        description: "One row per training run (train_delay_model.py): MAE versus naive, skill, promotion."

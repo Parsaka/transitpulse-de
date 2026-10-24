@@ -113,3 +113,9 @@ variable "databricks_volume_path" {
   type    = string
   default = "/Volumes/workspace/tp_landing/raw"
 }
+
+variable "weather_schedule" {
+  type        = string
+  default     = "0 7 * * * *"
+  description = "NCRONTAB schedule of the hourly Open-Meteo fetch (minute 7, after the hour's observations exist)."
+}

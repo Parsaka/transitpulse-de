@@ -35,6 +35,12 @@ SCHEMAS = {
     "trips_gone": """
         feed STRING, feed_ts TIMESTAMP, trip_id STRING, start_date STRING, last_seen_ts STRING
     """,
+    # Open-Meteo hourly weather at nine grid points (observations and forecasts), hourly
+    "weather": """
+        point_id STRING, point_name STRING, lat DOUBLE, lon DOUBLE, time TIMESTAMP, temp_c DOUBLE,
+        precip_mm DOUBLE, rain_mm DOUBLE, snow_cm DOUBLE, wind_kmh DOUBLE, gust_kmh DOUBLE,
+        weather_code INT, is_forecast BOOLEAN, fetched_at TIMESTAMP
+    """,
     # collector executions, synced hourly from Log Analytics by `transitpulse ops-sync`
     "collector_runs": """
         run_id STRING, started_at TIMESTAMP, success BOOLEAN, duration_ms DOUBLE, feed STRING,
@@ -67,7 +73,7 @@ def autoload(dataset: str):
 
 # ---------- bronze: one streaming table per raw dataset ----------
 
-for _dataset in ("stop_times", "trips_gone", "alerts", "collector_runs"):
+for _dataset in ("stop_times", "trips_gone", "alerts", "collector_runs", "weather"):
 
     def _make(dataset: str = _dataset):  # bind the loop variable
         @dlt.table(
@@ -169,6 +175,25 @@ def silver_collector_runs():
         .dropDuplicates(["run_id"])
         .withColumn("run_date", F.to_date("started_at"))
     )
+
+
+# ---------- silver: weather, latest fetch per point and hour (observations replace forecasts) ----------
+
+dlt.create_streaming_table(
+    name="silver_weather_hourly",
+    comment="Hourly weather per grid point; the latest fetch wins, so past hours are observations.",
+    table_properties={"quality": "silver"},
+    cluster_by=["time"],
+)
+
+dlt.apply_changes(
+    target="silver_weather_hourly",
+    source=f"{BRONZE}.bronze_weather",
+    keys=["point_id", "time"],
+    sequence_by=F.col("fetched_at"),
+    stored_as_scd_type=1,
+    except_column_list=["_source_file", "_ingested_at"],
+)
 
 
 # ---------- silver: latest known prediction per trip and stop (AUTO CDC, SCD type 1) ----------

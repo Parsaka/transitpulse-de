@@ -8,21 +8,26 @@ gtfs.de (all of Germany), keeps only what changed, and lands it in a data lake. 
 delay propagation, cancellations, weather impact and a forward-looking delay forecast. The whole
 pipeline watches itself with SLOs and alerts, and every optimisation is measured before and after.
 
-**Status: phase 6 done (2026-10-24).** Live status page:
+**Status: phases 0–6 done (2026-10-24).** Live status page:
 https://sttransitpulsedev3dkkh.z1.web.core.windows.net/ (SLOs, error budgets, network now; the
 dbt docs are under `/docs/`). The collector runs every minute in Azure (Functions,
 Consumption plan, managed identity), writes deltas to an ADLS Gen2 lake and pushes them into a
 Databricks Unity Catalog Volume; a Lakeflow Declarative Pipeline builds bronze and silver tables
 with expectations plus the static-schedule dimensions every 15 minutes; dbt builds the gold marts
-(punctuality, delay propagation, cancellations, network now) and the SLO tables on the serverless
-SQL warehouse every hour, with slim CI on pull requests. Azure is Terraform, Databricks is a
-bundle, CI validates and plans both. No alert drills, dashboards or ML yet: see the roadmap.
+(punctuality, delay propagation, cancellations, network now, weather impact) and the SLO tables
+on the serverless SQL warehouse every two hours, with slim CI on pull requests. Hourly Open-Meteo
+weather feeds a LightGBM delay-at-destination model (MLflow, Unity Catalog registry, weekly
+retraining behind a skill gate against the naive baseline) whose predictions are logged forward
+and scored against outcomes; a z-score anomaly detector raises a SQL alert. Azure is Terraform,
+Databricks is a bundle, CI validates and plans both. Four SLOs, three drills, Grafana dashboard
+and measured optimisations are documented under docs/.
 
 ## What exists today
 - `transitpulse collect --feed vbb --once`: fetch with ETag, parse, delta against the previous
   snapshot, write zstd Parquet partitions (`raw/<dataset>/feed=/date=/hour=/`) to a local folder or
   to Azure Blob (managed identity, no keys), JSON logs with per-step durations and a run summary.
-- Azure Function `collect` (timer, schedule from an app setting) running the same code every 60 s;
+- Azure Functions `collect` (every 60 s) and `weather` (hourly Open-Meteo for nine grid points),
+  schedules from app settings;
   Terraform for the lake, Function, Log Analytics + Application Insights, Key Vault, alert, budget
   and the GitHub OIDC identity ([docs/azure-setup.md](docs/azure-setup.md)).
 - CI: ruff, mypy, 42 offline tests on trimmed real feeds, Terraform validate and an OIDC plan,
@@ -31,8 +36,13 @@ bundle, CI validates and plans both. No alert drills, dashboards or ML yet: see 
   `bronze_*` → `silver_*` + `dim_*`, job every 15 min, health snapshot; `transitpulse gtfs-static`
   lands the VBB schedule twice a week.
 - dbt gold ([docs/dbt.md](docs/dbt.md)): `mart_punctuality_hourly/daily`, `mart_network_now`,
-  `mart_delay_propagation`, `mart_cancellations_daily`, `slo_status`; 34 tests, source freshness,
-  slim CI deferred to the prod manifest, hourly prod build.
+  `mart_delay_propagation`, `mart_cancellations_daily`, `mart_weather_impact_hourly`,
+  `mart_forecast_quality`, `slo_status`; 51 tests, source freshness, slim CI deferred to the prod
+  manifest, two-hourly prod build.
+- ML ([docs/ml.md](docs/ml.md)): LightGBM delay-at-destination model on Databricks serverless
+  jobs, time-based holdout, skill gate against the naive baseline, MLflow + Unity Catalog registry,
+  weekly retraining, forward-looking forecast log scored against outcomes, z-score network anomaly
+  detector with a SQL alert. First run: MAE 50.6 s vs naive 52.3 s (skill 3.3 %, two days of data).
 - Observability ([docs/observability.md](docs/observability.md)): four SLOs with error budgets
   (`slo_error_budget`), collector executions synced hourly into the lakehouse, alerts on three
   layers, public status site, Grafana dashboard; three incident drills with measured timelines

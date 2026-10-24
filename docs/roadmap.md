@@ -33,8 +33,15 @@
   (docs/drills.md), cost page with real figures. Verified end to end from CI on 2026-10-23
   12:31 UTC. Open for the owner: Grafana Cloud sign-up (dashboard and script are ready), verified
   alert email. GitHub watchdog moved to phase 8 with the website.
-- [ ] **Phase 5 – ML**: LightGBM delay-at-destination model with forward-looking forecast log,
-  MLflow registry in Unity Catalog, network anomaly detector that raises an alert.
+- [x] **Phase 5 – ML and weather** (2026-10-24, docs/ml.md): Open-Meteo hourly weather for nine
+  grid points (Function timer, Auto Loader bronze, AUTO CDC silver, 20,304 rows backfilled),
+  `dim_stop_weather_point` + `mart_weather_impact_hourly` (bus: dry 96.9 % punctual vs light rain
+  96.0 %; S-Bahn 98.3 % vs 91.1 %); LightGBM delay-at-destination model with a time-based holdout
+  and a skill gate against the naive "stays as it is" baseline, MLflow + Unity Catalog registry
+  (`tp_ops.delay_model@champion`), weekly retraining job; first run MAE 50.6 s vs naive 52.3 s
+  (skill 3.3 %, 75k trips, two days of data: honest, small); forward-looking `forecast_log`
+  scored by `mart_forecast_quality`; network anomaly detector (z-score per local hour) with a
+  Databricks SQL alert; status page shows forecast quality and anomaly checks.
 - [x] **Phase 6 – Measured optimisation** (2026-10-23/24, docs/optimisation.md): parallel uploads
   and warm clients (collector p50 −20 %, p95 −31 %), pandas removed (package −40 %, cold start
   about −75 %), latest-state table as AUTO CDC (flow −22 %), mart clustering (no measurable gain,

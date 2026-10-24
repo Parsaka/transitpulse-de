@@ -45,13 +45,20 @@
   <h2>Punctuality per day (all modes)</h2>
   <table><thead><tr><th>Day</th><th class="num">Scored stop events</th><th class="num">Late</th><th class="num">Cancelled</th><th class="num">Punctual</th><th class="num">Trips</th></tr></thead><tbody id="daily"></tbody></table>
 
+  <h2>Delay forecast (LightGBM, scored forward-looking)</h2>
+  <div class="muted">Earliest in-flight prediction per trip against the delay the trip ended with; naive = "the delay stays as it is now".</div>
+  <table><thead><tr><th>Day</th><th>Mode</th><th class="num">Trips</th><th class="num">MAE model (min)</th><th class="num">MAE naive (min)</th><th class="num">Skill</th><th class="num">Stops ahead</th></tr></thead><tbody id="forecast"></tbody></table>
+
+  <h2>Network anomaly checks (every 15 min)</h2>
+  <table><thead><tr><th>Checked</th><th class="num">Hour</th><th class="num">Events</th><th class="num">Avg delay (min)</th><th class="num">Usual</th><th class="num">z</th><th>Anomaly</th></tr></thead><tbody id="anomalies"></tbody></table>
+
   <h2>Collector (Azure Function)</h2>
   <table><thead><tr><th>Day</th><th class="num">Runs</th><th class="num">Success</th><th class="num">p50 ms</th><th class="num">p95 ms</th><th class="num">Rows written</th><th class="num">Delta reduction</th></tr></thead><tbody id="collector"></tbody></table>
 
   <footer>
-    Data: VBB GTFS-Realtime (CC BY 4.0), DELFI/VBB static schedule (CC BY 4.0). Code and method:
+    Data: VBB GTFS-Realtime (CC BY 4.0), DELFI/VBB static schedule (CC BY 4.0), weather by <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0). Code and method:
     <a href="https://github.com/Parsaka/transitpulse-de">github.com/Parsaka/transitpulse-de</a> ·
-    <a href="docs/index.html">dbt docs and lineage</a> · This page reads <a href="status.json">status.json</a>, written hourly by the dbt workflow.
+    <a href="docs/index.html">dbt docs and lineage</a> · This page reads <a href="status.json">status.json</a>, written every two hours by the dbt workflow.
   </footer>
 </main>
 <script>
@@ -76,6 +83,10 @@ fetch('status.json', {cache: 'no-store'}).then(r => r.json()).then(s => {
     `<tr><td>${n.mode}</td><td class="num">${num(n.active_trips)}</td><td class="num">${num(n.stop_events)}</td><td class="num">${n.avg_delay_min}</td><td class="num">${n.p90_delay_min}</td><td class="num">${pct(n.punctuality_now)}</td></tr>`).join('');
   document.getElementById('daily').innerHTML = s.punctuality_daily.filter(d => d.mode === '(all modes)').map(d =>
     `<tr><td>${d.date_local}</td><td class="num">${num(d.scored_events)}</td><td class="num">${num(d.late_events)}</td><td class="num">${num(d.cancelled_events)}</td><td class="num">${pct(d.punctuality)}</td><td class="num">${num(d.trips)}</td></tr>`).join('');
+  document.getElementById('forecast').innerHTML = (s.forecast_quality || []).map(f =>
+    `<tr><td>${f.service_date}</td><td>${f.mode}</td><td class="num">${num(f.trips_scored)}</td><td class="num">${f.mae_model_min}</td><td class="num">${f.mae_naive_min}</td><td class="num ${okc(f.skill > 0)}">${pct(f.skill)}</td><td class="num">${f.avg_stops_ahead}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">no scored trips yet</td></tr>';
+  document.getElementById('anomalies').innerHTML = (s.anomalies_recent || []).map(a =>
+    `<tr><td>${String(a.checked_at).slice(0,16)}</td><td class="num">${a.hour_local}</td><td class="num">${num(a.events)}</td><td class="num">${a.avg_delay_min}</td><td class="num">${a.base_avg_delay_min ?? '–'}</td><td class="num">${a.z_delay ?? '–'}</td><td class="${a.is_anomaly ? 'bad' : 'ok'}">${a.is_anomaly ? 'yes' : 'no'}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">no checks yet</td></tr>';
   document.getElementById('collector').innerHTML = s.collector_daily.map(c =>
     `<tr><td>${c.run_date}</td><td class="num">${num(c.runs)}</td><td class="num">${pct(c.success_rate)}</td><td class="num">${num(c.p50_duration_ms)}</td><td class="num">${num(c.p95_duration_ms)}</td><td class="num">${num(c.rows_written)}</td><td class="num">${pct(c.avg_reduction)}</td></tr>`).join('');
 }).catch(e => { document.getElementById('generated').textContent = 'status.json could not be loaded: ' + e; });

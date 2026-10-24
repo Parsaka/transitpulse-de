@@ -28,6 +28,12 @@ seed: route_type_modes (VBB extended route types -> mode)
   (trips that left the feed); "grew" and "recovered" mean a change of more than two minutes.
 - **SLOs** (`slo_status`): freshness of silver at most 20 minutes; at least 99 % of pipeline
   updates succeeded in 30 days; at most 1 % of records failed a warning expectation in 7 days.
+- **Weather impact** (`mart_weather_impact_hourly`): punctuality and average delay per hour,
+  mode and nearest Open-Meteo grid point (`dim_stop_weather_point`, haversine), with the hour's
+  precipitation class (dry / light rain / rain / snow) and a "windy" flag (gusts above 50 km/h).
+- **Forecast quality** (`mart_forecast_quality`, docs/ml.md): the earliest in-flight prediction
+  per trip against the delay the trip ended with, per day, mode and model version, next to the
+  naive forecast made at the same moment. Skill = 1 − MAE(model)/MAE(naive).
 
 ## Tests
 41 data tests: uniqueness of every grain (`dbt_utils.unique_combination_of_columns`), ranges

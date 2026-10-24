@@ -40,3 +40,6 @@ targets:
           email_notifications:
             on_failure: [parsa.kamali.data@gmail.com]
             no_alert_for_skipped_runs: true
+        transitpulse_train:
+          email_notifications:
+            on_failure: [parsa.kamali.data@gmail.com]

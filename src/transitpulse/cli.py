@@ -20,6 +20,7 @@ from transitpulse.feeds import FEEDS, get_feed
 from transitpulse.gtfs_static import STATIC_URLS, download, land_static_gtfs
 from transitpulse.gtfsrt.parse import parse_feed
 from transitpulse.ops_sync import fetch_records, rows_from_query, write_windows
+from transitpulse.weather import POINTS, fetch_openmeteo, land_weather, rows_from_openmeteo
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="TransitPulse DE collector")
 
@@ -85,6 +86,26 @@ def ops_sync(
     rows = rows_from_query(fetch_records(workspace_id, hours))
     res = write_windows(rows, s.lake())
     typer.echo(json.dumps(asdict(res)))
+
+
+@app.command()
+def weather(
+    past_days: int | None = typer.Option(None, help="hours of history to fetch (max 92 days)"),
+    forecast_days: int | None = typer.Option(None, help="forecast horizon in days"),
+) -> None:
+    """Fetch Open-Meteo hourly weather for the VBB grid points and land it (raw/weather)."""
+    from datetime import UTC, datetime
+
+    s = get_settings()
+    fetched_at = datetime.now(tz=UTC)
+    docs = fetch_openmeteo(
+        user_agent=s.user_agent,
+        past_days=past_days if past_days is not None else s.weather_past_days,
+        forecast_days=forecast_days if forecast_days is not None else s.weather_forecast_days,
+    )
+    rows = rows_from_openmeteo(docs, POINTS, fetched_at)
+    key, n = land_weather(rows, s.lake(), fetched_at)
+    typer.echo(json.dumps({"key": key, "rows": len(rows), "bytes": n, "points": len(POINTS)}))
 
 
 @app.command()
