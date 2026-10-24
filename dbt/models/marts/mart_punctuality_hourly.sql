@@ -7,7 +7,7 @@
 
 with events as (
     select * from {{ ref('stg_stop_events') }}
-    where is_observed
+    where is_observed and feed = '{{ var("core_feed") }}'
 )
 
 select

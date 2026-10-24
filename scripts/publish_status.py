@@ -57,6 +57,13 @@ def main(out_path: str) -> None:
                 " rows_written, avg_reduction from workspace.tp_ops.slo_collector_daily"
                 " where run_date >= current_date() - interval 14 days order by run_date",
             ),
+            "feeds_daily": rows(
+                cur,
+                "select service_date, feed, mode, agencies, routes, trips_seen, scored_events, punctuality,"
+                " avg_delay_min, schedule_match_rate from workspace.tp_gold.mart_feed_daily"
+                " where service_date >= current_date() - interval 2 days and mode = '(all modes)'"
+                " order by service_date desc, feed",
+            ),
             "forecast_quality": rows(
                 cur,
                 "select service_date, mode, model_version, trips_scored, mae_model_min, mae_naive_min,"

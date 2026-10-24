@@ -12,6 +12,7 @@ stops as (
     select stop_id, stop_name, stop_lat, stop_lon, parent_station
     from {{ source('silver', 'dim_stops') }}
     where stop_lat is not null and stop_lon is not null
+      and feed = '{{ var("core_feed") }}'  -- the grid points cover Berlin-Brandenburg only
 ),
 
 distances as (

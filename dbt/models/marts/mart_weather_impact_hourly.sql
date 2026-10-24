@@ -10,6 +10,7 @@ with events as (
     from {{ ref('stg_stop_events') }} as e
     join {{ ref('dim_stop_weather_point') }} as w on e.stop_id = w.stop_id
     where e.is_observed and not e.is_cancelled and not e.is_skipped_stop and e.delay_s is not null
+      and e.feed = '{{ var("core_feed") }}'
 ),
 
 weather as (

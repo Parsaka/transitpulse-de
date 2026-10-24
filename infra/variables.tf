@@ -54,9 +54,15 @@ variable "tfstate_storage_account_id" {
   description = "Resource ID of the Terraform state storage account (so CI can read and lock the state)."
 }
 
+variable "status_cors_origins" {
+  type        = list(string)
+  default     = ["https://parsa-kamali.de", "https://www.parsa-kamali.de"]
+  description = "Origins allowed to read the status site (status.json) from the browser."
+}
+
 variable "feeds" {
   type        = string
-  default     = "vbb"
+  default     = "vbb,gtfsde" # phase 8: VBB regional + gtfs.de nationwide
   description = "Comma-separated feeds the Function collects (vbb, gtfsde)."
 }
 

@@ -7,7 +7,7 @@
 
 with trips as (
     select * from {{ ref('stg_trips') }}
-    where is_completed and not is_cancelled
+    where is_completed and not is_cancelled and feed = '{{ var("core_feed") }}'
       and first_delay_s is not null and last_delay_s is not null
       and last_stop_sequence > 1
 )

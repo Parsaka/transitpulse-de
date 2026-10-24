@@ -25,7 +25,11 @@ from transitpulse.storage import table_to_bytes
 
 log = logging.getLogger(__name__)
 
-STATIC_URLS = {"vbb": "https://unternehmen.vbb.de/gtfs"}
+STATIC_URLS = {
+    "vbb": "https://unternehmen.vbb.de/gtfs",
+    # nationwide DELFI schedule (CC BY 4.0), about 276 MB, regenerated daily
+    "gtfsde": "https://download.gtfs.de/germany/free/latest.zip",
+}
 
 # table -> columns kept (None = all). Types are inferred by Arrow; ids stay strings.
 TABLES: dict[str, list[str] | None] = {
@@ -66,7 +70,7 @@ class StaticResult:
     keys: list[str]
 
 
-def download(url: str, *, user_agent: str, timeout_s: float = 120.0) -> bytes:
+def download(url: str, *, user_agent: str, timeout_s: float = 900.0) -> bytes:
     r = httpx.get(url, headers={"User-Agent": user_agent}, timeout=timeout_s, follow_redirects=True)
     r.raise_for_status()
     return r.content

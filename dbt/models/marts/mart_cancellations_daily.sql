@@ -5,6 +5,7 @@
 
 with trips as (
     select * from {{ ref('stg_trips') }}
+    where feed = '{{ var("core_feed") }}'
 )
 
 select

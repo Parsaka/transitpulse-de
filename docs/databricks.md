@@ -64,3 +64,9 @@ databricks fs cat dbfs:/Volumes/workspace/tp_landing/raw/ops/health.json --profi
 - No outbound internet from compute: ingestion stays in Azure, the Function pushes files in.
 - No account API: a 90-day personal access token (Key Vault) instead of a service principal.
 - Catalogs with Default Storage can only be created in the UI.
+- **A daily compute limit on the SQL warehouse.** On 2026-10-24, after the local phase-5 builds,
+  the 14:xx and 15:51 UTC scheduled builds and one more attempt, the warehouse refused to start at
+  16:25 UTC with "you have hit your free daily limit. Please come back again tomorrow". Serverless
+  jobs and the pipeline kept running. Consequence: dbt builds (prod, CI) can fail for the rest of
+  a day after heavy use; the two-hourly cadence is the compromise, and the status page keeps the
+  last good status.json. Measured, not estimated: the exact quota is not published.

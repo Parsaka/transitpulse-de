@@ -15,6 +15,9 @@ vars:
   late_threshold_s: 360
   # only stop events this far in the past count as observed (the last prediction is then final)
   settle_minutes: 20
+  # the feed the core marts, the weather join and the model are built on (precise static
+  # schedule, one region); the nationwide gtfs.de feed is reported per feed in mart_feed_daily
+  core_feed: vbb
 
 models:
   transitpulse:
