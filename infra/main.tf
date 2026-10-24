@@ -34,6 +34,17 @@ resource "azurerm_storage_account" "lake" {
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
   tags                            = local.tags
+
+  # the portfolio page reads status.json from the static website in the browser
+  blob_properties {
+    cors_rule {
+      allowed_origins    = var.status_cors_origins
+      allowed_methods    = ["GET", "HEAD"]
+      allowed_headers    = ["*"]
+      exposed_headers    = ["*"]
+      max_age_in_seconds = 3600
+    }
+  }
 }
 
 resource "azurerm_storage_data_lake_gen2_filesystem" "lake" {

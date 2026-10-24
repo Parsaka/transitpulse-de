@@ -1,6 +1,6 @@
 name: Static GTFS (weekly)
 
-# Lands the VBB static schedule (agency, routes, stops, trips, calendar) as Parquet in the Azure
+# Lands the VBB and the nationwide gtfs.de static schedules (agency, routes, stops, trips, calendar) as Parquet in the Azure
 # lake and in the Databricks landing Volume. Free: public repository minutes, OIDC to Azure, the
 # Databricks token from the repository secrets. Inactive until AZURE_CLIENT_ID exists.
 
@@ -39,3 +39,9 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Download VBB GTFS and land it as Parquet
         run: transitpulse gtfs-static --feed vbb | tail -n 1 | tee "$GITHUB_STEP_SUMMARY"
+      - name: Land the nationwide gtfs.de schedule (276 MB zip)
+        env:
+          TP_LAKE_URL: ${{ vars.ADLS_ACCOUNT_URL }}
+          TP_DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          TP_DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: transitpulse gtfs-static --feed gtfsde | tail -n 1 | tee -a "$GITHUB_STEP_SUMMARY"

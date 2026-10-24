@@ -6,6 +6,7 @@
 
 with events as (
     select * from {{ ref('stg_stop_events') }}
+    where feed = '{{ var("core_feed") }}'
 ),
 
 now_ts as (

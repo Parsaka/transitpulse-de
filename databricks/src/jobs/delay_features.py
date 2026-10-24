@@ -19,6 +19,8 @@ NUMERIC = [
 ]
 FEATURES = CATEGORICAL + NUMERIC
 TARGET = "last_delay_s"
+# the model is regional: the weather grid covers Berlin-Brandenburg, so only the core feed
+CORE_FEED = "vbb"
 
 
 def training_sql(catalog: str, gold: str, silver: str) -> str:
@@ -47,7 +49,7 @@ def training_sql(catalog: str, gold: str, silver: str) -> str:
     left join {catalog}.{gold}.dim_stop_weather_point p on f.stop_id = p.stop_id
     left join {catalog}.{silver}.silver_weather_hourly w
         on w.point_id = p.point_id and w.time = date_trunc('hour', f.event_ts)
-    where t.is_completed and not t.is_cancelled
+    where t.is_completed and not t.is_cancelled and t.feed = '{CORE_FEED}'
       and t.first_delay_s is not null and t.last_delay_s is not null and t.last_stop_sequence > 3
       and abs(t.first_delay_s) < 3600 and abs(t.last_delay_s) < 7200
     """
@@ -59,7 +61,7 @@ def scoring_sql(catalog: str, gold: str, silver: str, lookback_minutes: int = 60
     with recent as (
         select * from {catalog}.{gold}.stg_stop_events
         where feed_ts >= (select max(feed_ts) from {catalog}.{gold}.stg_stop_events) - interval {lookback_minutes} minutes
-          and delay_s is not null and not is_skipped_stop and not is_cancelled
+          and delay_s is not null and not is_skipped_stop and not is_cancelled and feed = '{CORE_FEED}'
     ),
     trips as (
         select feed, trip_id, start_date,

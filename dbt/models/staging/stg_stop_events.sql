@@ -10,6 +10,7 @@ with latest as (
 
 routes as (
     select
+        r.feed,
         r.route_id,
         r.agency_id,
         r.route_short_name,
@@ -20,11 +21,12 @@ routes as (
         a.agency_name
     from {{ source('silver', 'dim_routes') }} as r
     left join {{ ref('route_type_modes') }} as m on r.route_type = m.route_type
-    left join {{ source('silver', 'dim_agency') }} as a on r.agency_id = a.agency_id
+    left join {{ source('silver', 'dim_agency') }} as a on r.feed = a.feed and r.agency_id = a.agency_id
 ),
 
 trips as (
-    select trip_id, trip_headsign, direction_id as sched_direction_id, service_id
+    -- gtfs.de leaves route_id empty in the realtime feed: the route comes from the schedule
+    select feed, trip_id, route_id, trip_headsign, direction_id as sched_direction_id, service_id
     from {{ source('silver', 'dim_trips') }}
 ),
 
@@ -37,7 +39,7 @@ select
     l.trip_id,
     l.start_date,
     l.service_date,
-    l.route_id,
+    coalesce(nullif(l.route_id, ''), t.route_id) as route_id,
     r.agency_name,
     r.mode,
     r.mode_order,
@@ -60,6 +62,6 @@ select
     (t.trip_id is not null) as in_schedule
 from latest as l
 cross join max_feed as mf
-left join routes as r on l.route_id = r.route_id
-left join trips as t on l.trip_id = t.trip_id
+left join trips as t on l.feed = t.feed and l.trip_id = t.trip_id
+left join routes as r on l.feed = r.feed and coalesce(nullif(l.route_id, ''), t.route_id) = r.route_id
 where coalesce(l.arrival_time, l.departure_time) is not null

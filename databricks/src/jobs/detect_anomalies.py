@@ -19,7 +19,7 @@ spark = SparkSession.builder.getOrCreate()
 
 row = spark.sql(f"""
     with now_window as (
-        select max(feed_ts) as as_of from {catalog}.{gold}.stg_stop_events
+        select max(feed_ts) as as_of from {catalog}.{gold}.stg_stop_events where feed = 'vbb'
     ),
     current as (
         select
@@ -32,6 +32,7 @@ row = spark.sql(f"""
         where e.feed_ts >= n.as_of - interval 30 minutes
           and e.event_ts between n.as_of - interval 30 minutes and n.as_of
           and not e.is_cancelled and not e.is_skipped_stop and e.delay_s is not null
+          and e.feed = 'vbb'  -- the baseline (mart_punctuality_hourly) is the core feed
         group by n.as_of
     ),
     baseline as (
