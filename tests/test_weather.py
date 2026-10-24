@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pyarrow.parquet as pq
+import pytest
 import respx
 
 from transitpulse.lake import LocalLake
@@ -65,3 +66,20 @@ def test_fetch_sends_all_points_in_one_request() -> None:
     assert len(docs) == len(POINTS) and route.call_count == 1
     url = str(route.calls.last.request.url)
     assert "past_days=1" in url and url.count("52.52") == 1 and "timezone=UTC" in url
+
+
+@respx.mock
+def test_fetch_retries_server_errors_but_not_client_errors(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr("transitpulse.weather.time.sleep", lambda s: None)
+    route = respx.get(OPEN_METEO_URL).mock(
+        side_effect=[
+            httpx.Response(503, text="Service Unavailable"),
+            httpx.Response(200, json=[_doc(["2026-10-24T10:00"]) for _ in POINTS]),
+        ]
+    )
+    docs = fetch_openmeteo(user_agent="ua", retries=2)
+    assert len(docs) == len(POINTS) and route.call_count == 2
+
+    respx.get(OPEN_METEO_URL).mock(return_value=httpx.Response(400, text="bad request"))
+    with pytest.raises(httpx.HTTPStatusError):
+        fetch_openmeteo(user_agent="ua", retries=2)

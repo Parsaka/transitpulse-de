@@ -8,6 +8,8 @@ observations (the silver table keeps the latest fetch per point and hour).
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +19,8 @@ import pyarrow as pa
 
 from transitpulse.lake import Lake
 from transitpulse.storage import table_to_bytes
+
+log = logging.getLogger(__name__)
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 HOURLY = "temperature_2m,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,weather_code"
@@ -71,8 +75,15 @@ def fetch_openmeteo(
     user_agent: str,
     timeout_s: float = 60.0,
     client: httpx.Client | None = None,
+    retries: int = 3,
+    backoff_s: float = 2.0,
 ) -> list[dict[str, Any]]:
-    """One request for all points; returns a list of per-point JSON documents."""
+    """One request for all points; returns a list of per-point JSON documents.
+
+    Open-Meteo answers 503 now and then on the full hour (seen on the first timer run,
+    2026-10-24 13:07:00 UTC); server errors and transport errors are retried ``retries`` times
+    with a growing pause, client errors (4xx) are not.
+    """
     params: dict[str, str | int] = {
         "latitude": ",".join(str(p.lat) for p in points),
         "longitude": ",".join(str(p.lon) for p in points),
@@ -83,9 +94,21 @@ def fetch_openmeteo(
     }
     cl = client or httpx.Client(timeout=timeout_s)
     try:
-        r = cl.get(OPEN_METEO_URL, params=params, headers={"User-Agent": user_agent})
-        r.raise_for_status()
-        data = r.json()
+        for attempt in range(retries + 1):
+            try:
+                r = cl.get(OPEN_METEO_URL, params=params, headers={"User-Agent": user_agent})
+                r.raise_for_status()
+                data = r.json()
+                break
+            except (httpx.TransportError, httpx.HTTPStatusError) as e:
+                status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+                if (status is not None and status < 500) or attempt == retries:
+                    raise
+                log.warning(
+                    "open-meteo retry",
+                    extra={"attempt": attempt + 1, "status": status, "error": str(e)[:200]},
+                )
+                time.sleep(backoff_s * (attempt + 1))
     finally:
         if client is None:
             cl.close()
