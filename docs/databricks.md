@@ -66,7 +66,9 @@ databricks fs cat dbfs:/Volumes/workspace/tp_landing/raw/ops/health.json --profi
 - Catalogs with Default Storage can only be created in the UI.
 - **A daily compute limit on the SQL warehouse.** On 2026-10-24, after the local phase-5 builds,
   the 14:xx and 15:51 UTC scheduled builds and one more attempt, the warehouse refused to start at
-  16:25 UTC with "you have hit your free daily limit. Please come back again tomorrow". Serverless
-  jobs and the pipeline kept running. Consequence: dbt builds (prod, CI) can fail for the rest of
+  16:25 UTC with "you have hit your free daily limit. Please come back again tomorrow". The
+  pipeline kept running, but the Python tasks of the 16:15 refresh job waited 45+ minutes for
+  serverless compute and blocked the next refreshes (`max_concurrent_runs: 1`); the refresh job
+  therefore has `timeout_seconds: 840`. Consequence: dbt builds (prod, CI) can fail for the rest of
   a day after heavy use; the two-hourly cadence is the compromise, and the status page keeps the
   last good status.json. Measured, not estimated: the exact quota is not published.

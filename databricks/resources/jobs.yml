@@ -8,6 +8,11 @@ resources:
         timezone_id: Europe/Berlin
         pause_status: ${var.schedule_pause_status}
       max_concurrent_runs: 1
+      # Free Edition can starve serverless job compute for the rest of a day (docs/scale.md,
+      # 2026-10-24: Python tasks pending for 45+ minutes). A run that cannot finish in 14 minutes
+      # fails (failure mail) instead of blocking the next refreshes; the pipeline task alone
+      # needs 3 to 4 minutes.
+      timeout_seconds: 840
       tasks:
         - task_key: lakeflow
           pipeline_task:
