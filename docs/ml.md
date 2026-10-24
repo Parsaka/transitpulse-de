@@ -75,8 +75,8 @@ more weeks; `tp_ops.model_metrics` keeps one row per run, so the trend is a quer
 **Scoring and the forward-looking log.** After every 15-minute refresh, `score_delay_model.py`
 predicts the final delay for every trip still in the feed (first seen in the last hour, not yet
 gone) and appends what was known at that moment to `tp_ops.forecast_log`: current stop, current
-delay, naive forecast, model forecast, model version, timestamp. Nothing is ever back-filled
-with hindsight. `mart_forecast_quality` (dbt) later joins the *earliest* prediction per trip to
+delay, naive forecast, model forecast, model version, timestamp (first prod run: 2,533 trips
+in one scoring pass). Nothing is ever back-filled with hindsight. `mart_forecast_quality` (dbt) later joins the *earliest* prediction per trip to
 the delay it actually ended with and reports MAE model vs naive per day and mode; the status page
 shows it. This is the number to quote, not the holdout.
 
@@ -85,7 +85,8 @@ shows it. This is the number to quote, not the holdout.
 minutes of observed stop events versus the mean and standard deviation of the same local hour on
 earlier days (`mart_punctuality_hourly`). One row per check goes to `tp_ops.network_anomalies`;
 `is_anomaly` needs z > 3, at least two extra minutes and at least three baseline days, so the
-first days produce checks but no alerts by design. A Databricks SQL alert
+first days produce checks but no alerts by design (first checks on 2026-10-24: 11k to 20k events
+per 30-minute window, average delay 1.2 to 1.5 min against a usual 2.0 min, z about −0.1). A Databricks SQL alert
 (`databricks/alerts/network_anomaly.json`, every 15 minutes) mails the owner when a flagged check
 appears and again when it clears. It is a statistical "the network is unusually late right now"
 signal, not a root-cause finder; the runbook says what to look at next.
