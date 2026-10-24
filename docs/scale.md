@@ -44,12 +44,14 @@ The static workflow lands it daily after the VBB schedule (gtfs.de regenerates t
 | | Before (VBB only, 15:00 to 16:00 UTC) | First update with nationwide data (16:15 UTC) |
 |---|---|---|
 | Lakeflow update (bronze, silver, dimensions) | about 3.4 min (job 5.2 to 5.8 min end to end) | **3.7 min** |
-| Python tasks (health, score, anomaly) | 1 to 2 min | did not start: pending for 42 minutes waiting for serverless compute |
+| Python tasks (health, score, anomaly) | 1 to 2 min | did not start: pending 54 minutes, then RESOURCE_EXHAUSTED (daily quota) |
 
 The pipeline absorbed the first cold poll (412k rows), the following deltas and a 1.9-million-row
 trips dimension with a 9 % longer update. The Python tasks of the same run never got compute.
 At 16:25 UTC the SQL warehouse had already refused to start with "you have hit your free daily
-limit. Please come back again tomorrow"; the pending job compute is most likely the same quota.
+limit. Please come back again tomorrow"; the job run ended after 54 minutes with the same quota
+on its serverless compute: `RESOURCE_EXHAUSTED: Sorry, cannot run the resource because you have
+hit your free daily limit` (termination code FEATURE_DISABLED, pipeline task SUCCESS).
 With `max_concurrent_runs: 1` that run blocked the 16:30, 16:45 and 17:00 refreshes (skipped),
 so silver went stale for the rest of the quota day. The refresh job now has a 14-minute timeout:
 a compute-starved run fails (one failure mail per run) instead of silently blocking the following
