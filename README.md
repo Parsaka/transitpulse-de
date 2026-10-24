@@ -8,7 +8,7 @@ gtfs.de (all of Germany), keeps only what changed, and lands it in a data lake. 
 delay propagation, cancellations, weather impact and a forward-looking delay forecast. The whole
 pipeline watches itself with SLOs and alerts, and every optimisation is measured before and after.
 
-**Status: phase 4 done (2026-10-23).** Live status page:
+**Status: phase 6 done (2026-10-24).** Live status page:
 https://sttransitpulsedev3dkkh.z1.web.core.windows.net/ (SLOs, error budgets, network now; the
 dbt docs are under `/docs/`). The collector runs every minute in Azure (Functions,
 Consumption plan, managed identity), writes deltas to an ADLS Gen2 lake and pushes them into a
@@ -37,6 +37,9 @@ bundle, CI validates and plans both. No alert drills, dashboards or ML yet: see 
   (`slo_error_budget`), collector executions synced hourly into the lakehouse, alerts on three
   layers, public status site, Grafana dashboard; three incident drills with measured timelines
   ([docs/drills.md](docs/drills.md)); measured cost ([docs/cost.md](docs/cost.md)).
+- Measured optimisations ([docs/optimisation.md](docs/optimisation.md)): collector run −20 %
+  (p50) after parallel uploads, package −40 % and cold start −75 % without pandas, latest-state
+  flow −22 % as AUTO CDC, polling interval experiment (kept 60 s), clustering (no gain, kept).
 - `transitpulse inspect <file.pb>`: delay distribution of a saved feed.
 
 ## Measured so far (2026-10-22, laptop, single fetch)
