@@ -8,7 +8,7 @@ gtfs.de (all of Germany), keeps only what changed, and lands it in a data lake. 
 delay propagation, cancellations, weather impact and a forward-looking delay forecast. The whole
 pipeline watches itself with SLOs and alerts, and every optimisation is measured before and after.
 
-**Status: phases 0–6 done (2026-10-24).** Live status page:
+**Status: phases 0–6 and 8 done (2026-10-24).** Project page with live status: https://parsa-kamali.de/projects/transitpulse-de.php · Live status page:
 https://sttransitpulsedev3dkkh.z1.web.core.windows.net/ (SLOs, error budgets, network now; the
 dbt docs are under `/docs/`). The collector runs every minute in Azure (Functions,
 Consumption plan, managed identity), writes deltas to an ADLS Gen2 lake and pushes them into a
@@ -26,8 +26,8 @@ and measured optimisations are documented under docs/.
 - `transitpulse collect --feed vbb --once`: fetch with ETag, parse, delta against the previous
   snapshot, write zstd Parquet partitions (`raw/<dataset>/feed=/date=/hour=/`) to a local folder or
   to Azure Blob (managed identity, no keys), JSON logs with per-step durations and a run summary.
-- Azure Functions `collect` (every 60 s) and `weather` (hourly Open-Meteo for nine grid points),
-  schedules from app settings;
+- Azure Functions `collect` (every 60 s, VBB and gtfs.de nationwide since phase 8) and `weather`
+  (hourly Open-Meteo for nine grid points), schedules from app settings;
   Terraform for the lake, Function, Log Analytics + Application Insights, Key Vault, alert, budget
   and the GitHub OIDC identity ([docs/azure-setup.md](docs/azure-setup.md)).
 - CI: ruff, mypy, 42 offline tests on trimmed real feeds, Terraform validate and an OIDC plan,
@@ -37,7 +37,7 @@ and measured optimisations are documented under docs/.
   lands the VBB schedule twice a week.
 - dbt gold ([docs/dbt.md](docs/dbt.md)): `mart_punctuality_hourly/daily`, `mart_network_now`,
   `mart_delay_propagation`, `mart_cancellations_daily`, `mart_weather_impact_hourly`,
-  `mart_forecast_quality`, `slo_status`; 51 tests, source freshness, slim CI deferred to the prod
+  `mart_feed_daily`, `mart_forecast_quality`, `slo_status`; 54 tests, source freshness, slim CI deferred to the prod
   manifest, two-hourly prod build.
 - ML ([docs/ml.md](docs/ml.md)): LightGBM delay-at-destination model on Databricks serverless
   jobs, time-based holdout, skill gate against the naive baseline, MLflow + Unity Catalog registry,
@@ -50,6 +50,8 @@ and measured optimisations are documented under docs/.
 - Measured optimisations ([docs/optimisation.md](docs/optimisation.md)): collector run −20 %
   (p50) after parallel uploads, package −40 % and cold start −75 % without pandas, latest-state
   flow −22 % as AUTO CDC, polling interval experiment (kept 60 s), clustering (no gain, kept).
+- Scale ([docs/scale.md](docs/scale.md)): the nationwide feed measured against the regional one;
+  case study ([docs/case-study.md](docs/case-study.md)) and CV wording ([docs/cv.md](docs/cv.md)).
 - `transitpulse inspect <file.pb>`: delay distribution of a saved feed.
 
 ## Measured so far (2026-10-22, laptop, single fetch)

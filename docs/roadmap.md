@@ -49,5 +49,10 @@
   cluster size wait for Tier B (phase 7).
 - [ ] **Phase 7 – Tier B (two weeks, student credit)**: Azure Databricks Premium via Terraform,
   Event Hubs (Kafka endpoint) → Structured Streaming, DBU cost from system tables, then destroy.
-- [ ] **Phase 8 – Scale and publish**: gtfs.de nationwide feed, website page with live status,
-  case study, architecture diagram, CV wording (EN/DE).
+- [x] **Phase 8 – Scale and publish** (2026-10-24, docs/scale.md): gtfs.de nationwide feed
+  switched on (first cold poll 412,352 rows in 6.2 s, about 95 % suppressed a minute later; the
+  pipeline update took 3.7 min instead of 3.4), nationwide static schedule landed daily (1.9 M
+  trips, 687k stops), feed-aware dbt joins, `mart_feed_daily`, core marts pinned to VBB; website
+  page with live status (parsa-kamali.de, EN/DE, architecture diagram), docs/case-study.md,
+  docs/cv.md. Found and recorded: Free Edition's daily compute quota (warehouse refused at 16:25
+  UTC, job tasks starved), refresh job now times out after 14 min.
