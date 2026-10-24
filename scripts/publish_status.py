@@ -57,6 +57,17 @@ def main(out_path: str) -> None:
                 " rows_written, avg_reduction from workspace.tp_ops.slo_collector_daily"
                 " where run_date >= current_date() - interval 14 days order by run_date",
             ),
+            "forecast_quality": rows(
+                cur,
+                "select service_date, mode, model_version, trips_scored, mae_model_min, mae_naive_min,"
+                " skill, avg_stops_ahead from workspace.tp_ops.mart_forecast_quality"
+                " where service_date >= current_date() - interval 14 days order by service_date, mode",
+            ),
+            "anomalies_recent": rows(
+                cur,
+                "select checked_at, as_of, hour_local, events, avg_delay_min, base_avg_delay_min, z_delay,"
+                " is_anomaly from workspace.tp_ops.network_anomalies order by checked_at desc limit 12",
+            ),
             "pipeline_updates_recent": rows(
                 cur,
                 "select started_at, final_state, succeeded, duration_min from"

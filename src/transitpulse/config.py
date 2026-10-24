@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     databricks_host: str = ""  # https://dbc-....cloud.databricks.com
     databricks_token: str = ""  # personal access token, from Key Vault in the Function
     volume_path: str = "/Volumes/workspace/tp_landing/raw"
+    weather_past_days: int = 2
+    weather_forecast_days: int = 2
 
     def lake(self) -> Lake:
         primary = make_lake(

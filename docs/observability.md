@@ -30,6 +30,8 @@ is intended: the table shows what happened, not what should have happened.
 | job failure | Databricks job `transitpulse-refresh-prod` | pipeline or health task failed | email to the owner |
 | dbt build / freshness | GitHub Actions `dbt.yml` | test failure or source freshness error | GitHub failure mail to the owner |
 | budget 50/90/100 % | Azure Cost Management | spend in the resource group | email |
+| network-anomaly | Databricks SQL alert on `tp_ops.network_anomalies`, every 15 min | a check of the last 30 min flagged `is_anomaly` (z > 3 and 2+ extra minutes against the same hour on earlier days; docs/ml.md) | email to the owner |
+| training failure | Databricks job `transitpulse-train-prod` (weekly) | training failed, or the model did not beat the naive baseline (skill gate) | email to the owner |
 
 Measured latencies (docs/drills.md): a feed outage fires the Azure alert 10 minutes after the
 first failed execution, a stopped collector after 28 minutes; a poison file fails the pipeline
@@ -37,8 +39,8 @@ update after 2 minutes; the Azure alert resolves 44 to 50 minutes after the firs
 (several clean evaluations).
 
 ## Status site
-The hourly workflow publishes `status.json` (SLOs, error budgets, network now, daily punctuality,
-collector days, recent updates) with `scripts/publish_status.py`, the page `site/index.html` and
+The two-hourly workflow publishes `status.json` (SLOs, error budgets, network now, daily punctuality,
+collector days, recent updates, forecast quality per day and mode, recent anomaly checks) with `scripts/publish_status.py`, the page `site/index.html` and
 the dbt docs to the `$web` container of the lake storage account. Cost: storage only.
 
 ## Grafana Cloud (free tier)

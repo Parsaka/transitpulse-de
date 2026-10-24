@@ -179,6 +179,7 @@ resource "azurerm_linux_function_app" "collector" {
     PYTHON_ISOLATE_WORKER_DEPENDENCIES = "1"
     ENABLE_ORYX_BUILD                  = "false"
     TP_SCHEDULE                        = var.schedule
+    TP_WEATHER_SCHEDULE                = var.weather_schedule
     TP_FEEDS                           = var.feeds
     TP_LAKE_BACKEND                    = "azure"
     TP_ADLS_ACCOUNT_URL                = azurerm_storage_account.lake.primary_blob_endpoint

@@ -12,6 +12,8 @@
 |---|---|---|
 | collector-unhealthy | no successful `collect` execution in 15 min, or 3+ failures | Query below; check the feed provider status page (VBB posts outages on its Atom feed) |
 | budget 50/90/100 % | spend in the resource group | Cost analysis blade; the usual suspect is log ingestion above the free 5 GB |
+| transitpulse-network-anomaly (Databricks SQL alert) | a 30-minute window flagged `is_anomaly` in `tp_ops.network_anomalies` | `select * from workspace.tp_ops.network_anomalies order by checked_at desc limit 5`; compare with `mart_network_now` and the VBB disruption notices; a data problem (duplicate events, late static dimensions) shows as an `events` count far above the usual |
+| transitpulse-train-prod failed | weekly training error, or "model not promoted" (skill gate) | the run output prints MAE versus naive; a non-promotion keeps the previous champion, nothing to do unless it repeats |
 
 Useful queries (Log Analytics workspace `log-transitpulse-dev`; the Application Insights blade may lag):
 ```kusto
@@ -74,6 +76,11 @@ Your user needs `Storage Blob Data Contributor` on the lake account (`admin_prin
   put the value into `infra/terraform.tfvars` (`databricks_token`) and `terraform apply`
   (Key Vault secret + Function restart), then `gh secret set DATABRICKS_TOKEN`. Revoke the old
   token with `databricks tokens delete <id>`.
+- **ML:** job `transitpulse-train-prod` trains weekly (Sunday 04:00 Berlin) and registers
+  `workspace.tp_ops.delay_model@champion` only if it beats the naive baseline; `score` and
+  `anomaly` run after every refresh. `databricks bundle run transitpulse_train -t prod` trains by
+  hand. The SQL alert lives in `databricks/alerts/network_anomaly.json` (`alerts-v2 create-alert
+  --json @...`). See docs/ml.md.
 - Backfill the Volume from the lake (if the Volume was ever emptied): copy `raw/` blobs with
   `BlobLake.get` -> `VolumeLake.put` (see the phase-2 PR for the one-off script), then
   `transitpulse gtfs-static --feed vbb` for the dimensions.

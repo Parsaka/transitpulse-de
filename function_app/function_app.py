@@ -10,22 +10,25 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 import azure.functions as func
 
 from transitpulse import logging as tplog
 from transitpulse.collector import RunSummary, run_once
-from transitpulse.config import get_settings
+from transitpulse.config import Settings, get_settings
 from transitpulse.feeds import get_feed
+from transitpulse.lake import Lake
+from transitpulse.weather import POINTS, fetch_openmeteo, land_weather, rows_from_openmeteo
 
 app = func.FunctionApp()
 log = logging.getLogger("transitpulse.function")
 
 
-_cache: dict[str, object] = {}
+_cache: dict[str, Any] = {}
 
 
-def _runtime():  # type: ignore[no-untyped-def]
+def _runtime() -> tuple[Settings, Lake]:
     """Settings and lake built once per worker process: the blob and Files API clients keep their
     TLS connections and the managed-identity token between invocations (warm instance)."""
     if "lake" not in _cache:
@@ -56,3 +59,22 @@ def collect(timer: func.TimerRequest) -> None:
         # Raise so the host records a failed execution (metric alert + Monitor); the summaries
         # were already logged with full detail by the collector.
         raise RuntimeError(f"{len(failed)} of {len(summaries)} feed runs failed: {failed[0].error}")
+
+
+@app.timer_trigger(
+    schedule="%TP_WEATHER_SCHEDULE%", arg_name="timer", run_on_startup=False, use_monitor=True
+)
+def weather(timer: func.TimerRequest) -> None:
+    """Hourly: Open-Meteo observations and forecasts for the nine grid points -> raw/weather."""
+    from datetime import UTC, datetime
+
+    settings, lake = _runtime()
+    fetched_at = datetime.now(tz=UTC)
+    docs = fetch_openmeteo(
+        user_agent=settings.user_agent,
+        past_days=settings.weather_past_days,
+        forecast_days=settings.weather_forecast_days,
+    )
+    rows = rows_from_openmeteo(docs, POINTS, fetched_at)
+    key, n = land_weather(rows, lake, fetched_at)
+    log.info("weather landed", extra={"key": key, "rows": len(rows), "bytes": n})
