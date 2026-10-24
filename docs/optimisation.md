@@ -84,3 +84,24 @@ compact at this size, so it was not applied; clustering the marts was measured i
 | collector_runs_day | 356 | 361 |
 
 Finding: no measurable change (all within run-to-run noise of about ±50 ms); at a few MB per table the serverless warehouse is bound by request overhead, not by data layout. The clustering stays because the tables grow by about 1.5 M stop-time rows a day; the benchmark is re-run monthly.
+
+## 6. Delta store: gone-trip cleanup in one pass (phase 8, 2026-10-24)
+Found when the nationwide feed moved to its own 5-minute timer: a poll took 58 to 60 s, of which
+54.4 s in the `delta` step (step logs in Log Analytics, run 7691af79db0a). For every trip that
+had left the feed the store scanned all stop fingerprints to drop that trip's keys, O(store x
+gone): 1,796 gone trips x 390k fingerprints. At one poll per minute only about 120 trips leave
+the feed, so the scan cost 4.8 s and hid in the noise.
+
+Change: one pass groups the fingerprints by trip (`rsplit('|', 1)`), then each gone trip drops
+its keys from that index: O(store + gone).
+
+| | Before | After |
+|---|---|---|
+| Synthetic, production shape (56k trips, 390k rows, 1,800 gone, 8.5 % changed), laptop | 67.4 s | **1.26 s** |
+| Production, gtfs.de 5-minute poll, `delta` step | 54.4 s (17:20 UTC) | see the row added after the deploy |
+| Production, whole poll | 57.8 to 60.5 s | |
+
+Why it matters for cost: a 60-second poll every five minutes is about 60 GB-s per poll on the
+Consumption plan, more than the minute timer had cost; after the fix a poll is back in the
+10-second range. The timer stays at 5 minutes until the next full-hour `FunctionExecutionUnits`
+reading confirms the arithmetic in docs/scale.md.

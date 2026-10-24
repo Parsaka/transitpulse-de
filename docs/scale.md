@@ -28,6 +28,15 @@ about 220,000 GB-s per month, 55 % of the grant, 0 EUR. The price is a punctuali
 is up to 5 minutes staler for the nationwide feed (the last prediction before a stop's scheduled
 time), which `mart_feed_daily` reports separately anyway. Measured first, then decided.
 
+### Found right after the switch: a 60-second poll, and why
+The first two 5-minute polls took 57.8 and 60.5 s (the 1-minute polls took 9 s). The step logs
+put 54.4 s of it in `delta`. Cause: for every trip that had left the feed, the delta store scanned
+all stop fingerprints to drop that trip's keys, O(store x gone): 1,796 gone trips x 390k
+fingerprints per poll. With one grouping pass (O(store + gone)) the same step takes 1.26 s instead
+of 67.4 s on synthetic data of the production shape (56k trips, 1,800 gone, 8.5 % changed rows);
+production numbers are in docs/optimisation.md once measured. The 1-minute polls hid the problem
+because only about 120 trips left the feed per minute.
+
 ## Static schedule (gtfs.de, 276 MB zip, landed 16:32 UTC from a laptop in about 3 minutes)
 | Table | Rows |
 |---|---|

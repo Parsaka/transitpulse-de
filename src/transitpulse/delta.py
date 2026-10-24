@@ -137,23 +137,31 @@ class DeltaStore:
 
         gone: list[dict[str, Any]] = []
         prefix = f"{feed}:"
-        for tk in [t for t in self.trips if t.startswith(prefix)]:
+        gone_keys = [
+            t for t in self.trips if t.startswith(prefix) and t[len(prefix) :] not in seen_trips
+        ]
+        if gone_keys:
+            # One pass over the store groups the stop fingerprints by trip, so dropping the gone
+            # trips is O(store + gone). The previous scan per gone trip was O(store x gone):
+            # 1,796 gone trips x 390k fingerprints took 54 s on the nationwide feed (docs/scale.md).
+            by_trip: dict[str, list[str]] = {}
+            for rk in self.fingerprints:
+                by_trip.setdefault(rk.rsplit("|", 1)[0], []).append(rk)
+        for tk in gone_keys:
             bare = tk[len(prefix) :]
-            if bare not in seen_trips:
-                trip_id, _, start_date = bare.partition("|")
-                gone.append(
-                    {
-                        "feed": feed,
-                        "feed_ts": feed_ts,
-                        "trip_id": trip_id,
-                        "start_date": start_date or None,
-                        "last_seen_ts": self.trips.pop(tk),
-                    }
-                )
-                # drop the trip's stop fingerprints so memory does not grow without bound
-                tp = f"{trip_id}|{start_date}|"
-                for rk in [r for r in self.fingerprints if r.startswith(tp)]:
-                    del self.fingerprints[rk]
+            trip_id, _, start_date = bare.partition("|")
+            gone.append(
+                {
+                    "feed": feed,
+                    "feed_ts": feed_ts,
+                    "trip_id": trip_id,
+                    "start_date": start_date or None,
+                    "last_seen_ts": self.trips.pop(tk),
+                }
+            )
+            # drop the trip's stop fingerprints so memory does not grow without bound
+            for rk in by_trip.get(bare, ()):
+                del self.fingerprints[rk]
         for t in seen_trips:
             self.trips[prefix + t] = feed_ts.isoformat()
 
