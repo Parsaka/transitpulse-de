@@ -42,7 +42,9 @@ sources:
         loaded_at_field: started_at
         freshness:
           warn_after: {count: 90, period: minute}
-          error_after: {count: 6, period: hour}
+          # warn only: this source is fed by the two-hourly GitHub cron (ops-sync) and the next
+          # pipeline update; a late cron (seen: 3 h 50 min) is not a collector incident, the Azure
+          # alert covers that. A scheduled run on 2026-10-24 10:53 failed on this before the change.
         columns:
           - name: run_id
             tests: [unique, not_null]

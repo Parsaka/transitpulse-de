@@ -38,6 +38,13 @@ first failed execution, a stopped collector after 28 minutes; a poison file fail
 update after 2 minutes; the Azure alert resolves 44 to 50 minutes after the first good execution
 (several clean evaluations).
 
+Two findings from the first phase-5 day (2026-10-24), both fixed the same day: the first
+`weather` timer run got a 503 from Open-Meteo at 13:07:00 UTC (the fetch now retries server
+errors three times with a growing pause; 4xx are not retried), and the scheduled dbt run at 10:53
+UTC failed on the *freshness* of `silver_collector_runs`, whose only path into the lakehouse is
+the two-hourly GitHub cron (`ops-sync`) plus the next pipeline update. A late cron is not a
+collector incident (the Azure rule covers that), so that source is warn-only now.
+
 ## Status site
 The two-hourly workflow publishes `status.json` (SLOs, error budgets, network now, daily punctuality,
 collector days, recent updates, forecast quality per day and mode, recent anomaly checks) with `scripts/publish_status.py`, the page `site/index.html` and
