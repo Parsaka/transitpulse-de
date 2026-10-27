@@ -30,7 +30,7 @@ is intended: the table shows what happened, not what should have happened.
 | job failure | Databricks job `transitpulse-refresh-prod` | pipeline or health task failed | email to the owner |
 | dbt build / freshness | GitHub Actions `dbt.yml` | test failure or source freshness error | GitHub failure mail to the owner |
 | budget 50/90/100 % | Azure Cost Management | spend in the resource group | email |
-| network-anomaly | Databricks SQL alert on `tp_ops.network_anomalies`, every 15 min | a check of the last 30 min flagged `is_anomaly` (z > 3 and 2+ extra minutes against the same hour on earlier days; docs/ml.md) | email to the owner |
+| network-anomaly | Databricks SQL alert on `tp_ops.network_anomalies`, every 2 h (every 15 min kept the warehouse on all day and exhausted the Free Edition quota) | a check of the last 30 min flagged `is_anomaly` (z > 3 and 2+ extra minutes against the same hour on earlier days; docs/ml.md) | email to the owner |
 | training failure | Databricks job `transitpulse-train-prod` (weekly) | training failed, or the model did not beat the naive baseline (skill gate) | email to the owner |
 
 Measured latencies (docs/drills.md): a feed outage fires the Azure alert 10 minutes after the

@@ -79,7 +79,8 @@ sources:
         loaded_at_field: predicted_at
         freshness:
           warn_after: {count: 45, period: minute}
-          error_after: {count: 3, period: hour}
+          # warn only: a stalled score task is already a job failure mail; an error here only
+          # stopped the whole gold build (2026-10-27 01:28 UTC) while the pipeline was down.
       - name: network_anomalies
         description: One row per anomaly check (detect_anomalies.py); is_anomaly flags an unusually late network.
       - name: model_metrics
