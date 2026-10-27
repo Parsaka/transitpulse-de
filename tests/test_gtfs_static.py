@@ -82,3 +82,39 @@ def test_download_follows_redirect_and_sends_user_agent() -> None:
     respx.get("https://cdn.test/GTFS.zip").mock(return_value=httpx.Response(200, content=b"PK..."))
     assert download(STATIC_URLS["vbb"], user_agent="ua") == b"PK..."
     assert respx.calls[0].request.headers["user-agent"] == "ua"
+
+
+def test_column_types_are_fixed_even_for_empty_columns(tmp_path: Path) -> None:
+    # gtfs.de leaves route_long_name empty for every route: without fixed types Arrow wrote a
+    # Parquet "null" (INT32) column and the pipeline's schema inference broke (2026-10-27).
+    zip_bytes = _zip(
+        {
+            "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n1,A,http://a,Europe/Berlin\n",
+            "routes.txt": "route_id,agency_id,route_short_name,route_long_name,route_type\nr1,1,10,,3\nr2,1,11,,700\n",
+            "stops.txt": "stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station,platform_code\ns1,S,52.5,13.4,,,\n",
+            "trips.txt": "route_id,service_id,trip_id,trip_headsign,direction_id,shape_id\nr1,sv,t1,,,\n",
+            "calendar.txt": "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nsv,1,1,1,1,1,0,0,20261001,20261231\n",
+            "calendar_dates.txt": "service_id,date,exception_type\nsv,20261003,2\n",
+        }
+    )
+    lake = LocalLake(tmp_path)
+    land_static_gtfs(zip_bytes, lake, feed="x", version="v1")
+    import pyarrow as pa
+
+    def schema(table: str) -> dict[str, pa.DataType]:
+        s = pq.read_schema(
+            tmp_path / "static" / "gtfs" / "feed=x" / "version=v1" / f"{table}.parquet"
+        )
+        return {n: s.field(n).type for n in s.names}
+
+    assert schema("routes")["route_long_name"] == pa.string()
+    assert schema("routes")["route_type"] == pa.int64()
+    assert schema("stops")["stop_lat"] == pa.float64()
+    assert schema("stops")["location_type"] == pa.int64()
+    assert schema("trips")["direction_id"] == pa.int64()
+    assert schema("trips")["trip_headsign"] == pa.string()
+    assert (
+        schema("calendar")["monday"] == pa.int64()
+        and schema("calendar")["start_date"] == pa.string()
+    )
+    assert schema("calendar_dates")["exception_type"] == pa.int64()

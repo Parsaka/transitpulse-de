@@ -41,6 +41,18 @@ AppExceptions | order by TimeGenerated desc | take 1 | project TimeGenerated, In
 | runs succeed but `n_written_stop_times` is 0 for a long time | feed frozen upstream (header timestamp not advancing: `feed_age_s` grows) | nothing to fix locally; note it in the data log |
 | state blob grows past a few MB | gone-trip cleanup not running (feed stopped sending trips) | inspect `state/<feed>.parquet` kinds; delete it to reset (one full snapshot follows) |
 
+## Static schema drift (incident, 2026-10-27)
+Symptom: every `transitpulse-refresh-prod` run timed out after 14 minutes from 2026-10-26 late
+evening on (about 100 failure mails), pipeline updates FAILED on flow `dim_routes` with
+`PARQUET_COLUMN_DATA_TYPE_MISMATCH … Expected Spark type integer, actual Parquet type BYTE_ARRAY`.
+Cause: gtfs.de leaves `route_long_name` empty, Arrow wrote it as a Parquet INT32 "null" column,
+and after the VBB schedule of 2026-10-26 landed, Spark's schema inference took the gtfs.de file
+as the reference and refused the VBB string column. Fix: the static writer casts every column to
+a fixed type (`gtfs_static.column_type`), the pipeline reads the static tables with explicit
+schemas and only the newest version per feed (`latest_static`), both schedules were re-landed.
+If it ever recurs: `databricks pipelines list-pipeline-events <id> --filter "level='ERROR'"`
+names the flow and the file; re-land that feed with `transitpulse gtfs-static --feed <feed>`.
+
 ## Poison file in the landing Volume (drill 3)
 Symptom: pipeline updates fail with `FAILED_READ_FILE` naming a file under `raw/...`; the job
 retries up to five times, then stops; the owner gets the job failure mail. Fix: delete the file
