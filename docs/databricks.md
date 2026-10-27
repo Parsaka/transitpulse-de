@@ -72,3 +72,9 @@ databricks fs cat dbfs:/Volumes/workspace/tp_landing/raw/ops/health.json --profi
   therefore has `timeout_seconds: 840`. Consequence: dbt builds (prod, CI) can fail for the rest of
   a day after heavy use; the two-hourly cadence is the compromise, and the status page keeps the
   last good status.json. Measured, not estimated: the exact quota is not published.
+  **Cause found 2026-10-27:** the network-anomaly SQL alert ran every 15 minutes, so the
+  2X-Small warehouse (auto-stop 10 min) was effectively on all day and the quota was gone by
+  mid-afternoon every day (dbt builds at 15:08 and 20:59 UTC on 10-26 and 07:44 on 10-27 waited
+  15 minutes for a warehouse that never started). The alert now runs every 2 hours
+  (`databricks/alerts/network_anomaly.json`); the auto-stop of the warehouse (10 min) cannot be
+  changed on Free Edition ("Editing warehouse is not available to free users").
