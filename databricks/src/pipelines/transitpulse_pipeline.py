@@ -8,8 +8,11 @@ Runs on serverless in triggered mode (a job triggers it every 15 minutes) so the
 quota is spent only while there is work to do.
 """
 
+import os
+
 import dlt
 from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 LANDING = spark.conf.get("transitpulse.landing", "/Volumes/workspace/tp_landing/raw/raw")
 # Bronze tables are published into their own schema (default publishing mode allows
@@ -222,11 +225,79 @@ dlt.apply_changes(
 STATIC = spark.conf.get("transitpulse.static", "/Volumes/workspace/tp_landing/raw/static/gtfs")
 
 
+# Explicit schemas: the files are read with these types, never inferred. Inference broke on
+# 2026-10-27 when a gtfs.de file stored an all-empty text column as a Parquet INT32 "null"
+# column and Spark took that as the schema for every feed (docs/runbook.md).
+_S, _I, _D = T.StringType(), T.LongType(), T.DoubleType()
+STATIC_SCHEMAS = {
+    "agency": [("agency_id", _S), ("agency_name", _S), ("agency_url", _S), ("agency_timezone", _S)],
+    "routes": [
+        ("route_id", _S),
+        ("agency_id", _S),
+        ("route_short_name", _S),
+        ("route_long_name", _S),
+        ("route_type", _I),
+    ],
+    "stops": [
+        ("stop_id", _S),
+        ("stop_name", _S),
+        ("stop_lat", _D),
+        ("stop_lon", _D),
+        ("location_type", _I),
+        ("parent_station", _S),
+        ("platform_code", _S),
+    ],
+    "trips": [
+        ("route_id", _S),
+        ("service_id", _S),
+        ("trip_id", _S),
+        ("trip_headsign", _S),
+        ("direction_id", _I),
+        ("shape_id", _S),
+    ],
+    "calendar": [
+        ("service_id", _S),
+        ("monday", _I),
+        ("tuesday", _I),
+        ("wednesday", _I),
+        ("thursday", _I),
+        ("friday", _I),
+        ("saturday", _I),
+        ("sunday", _I),
+        ("start_date", _S),
+        ("end_date", _S),
+    ],
+    "calendar_dates": [("service_id", _S), ("date", _S), ("exception_type", _I)],
+}
+
+
+def newest_static_paths(table: str) -> list[str]:
+    """One file path per feed: the newest landed version folder (older versions are ignored)."""
+    paths: list[str] = []
+    try:
+        feed_dirs = sorted(os.listdir(STATIC))
+    except OSError:  # no local file access to the Volume: fall back to the glob (fixed schema)
+        return paths
+    for feed_dir in feed_dirs:
+        if not feed_dir.startswith("feed="):
+            continue
+        versions = sorted(v for v in os.listdir(f"{STATIC}/{feed_dir}") if v.startswith("version="))
+        for v in reversed(versions):
+            if os.path.exists(f"{STATIC}/{feed_dir}/{v}/{table}.parquet"):
+                paths.append(f"{STATIC}/{feed_dir}/{v}/{table}.parquet")
+                break
+    return paths
+
+
 def latest_static(table: str):
-    """Rows of the newest landed version of a static table (one version folder per landing)."""
-    df = spark.read.option("basePath", STATIC).parquet(f"{STATIC}/feed=*/version=*/{table}.parquet")
-    newest = df.groupBy("feed").agg(F.max("version").alias("version"))
-    return df.join(newest, ["feed", "version"], "inner")
+    """Rows of the newest landed version of a static table per feed, read with a fixed schema."""
+    schema = T.StructType([T.StructField(n, t, True) for n, t in STATIC_SCHEMAS[table]])
+    paths = newest_static_paths(table)
+    reader = spark.read.schema(schema).option("basePath", STATIC)
+    if not paths:
+        return reader.parquet(f"{STATIC}/feed=*/version=*/{table}.parquet")
+    # partition columns come from the path (feed=, version=); older versions are not read at all
+    return reader.parquet(*paths)
 
 
 for _table, _comment in (

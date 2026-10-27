@@ -60,6 +60,32 @@ ID_COLUMNS = {
     "route_short_name",
 }
 
+# Every landed file carries exactly these Arrow types, whatever the CSV looks like. Without this,
+# an all-empty column (gtfs.de route_long_name) was written as a Parquet INT32 "null" column and
+# the pipeline's dim_routes flow failed on the next VBB version (2026-10-27, docs/runbook.md).
+INT_COLUMNS = {
+    "route_type",
+    "direction_id",
+    "location_type",
+    "exception_type",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+}
+FLOAT_COLUMNS = {"stop_lat", "stop_lon"}
+
+
+def column_type(column: str) -> pa.DataType:
+    if column in INT_COLUMNS:
+        return pa.int64()
+    if column in FLOAT_COLUMNS:
+        return pa.float64()
+    return pa.string()  # ids, names, dates (YYYYMMDD stays text), urls, timezones
+
 
 @dataclass
 class StaticResult:
@@ -84,7 +110,7 @@ def read_table(zf: zipfile.ZipFile, table: str) -> pa.Table | None:
     header = next(csv.reader(io.StringIO(raw[:4096].decode("utf-8-sig"), newline="")))
     keep = TABLES[table]
     cols = [c for c in header if keep is None or c in keep]
-    types = {c: pa.string() for c in cols if c in ID_COLUMNS}
+    types = {c: column_type(c) for c in cols}
     return pacsv.read_csv(
         io.BytesIO(raw),
         convert_options=pacsv.ConvertOptions(
