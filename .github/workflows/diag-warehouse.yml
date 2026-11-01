@@ -1,0 +1,48 @@
+name: Diagnose SQL warehouse (temporary)
+
+# Temporary: lists the workspace's SQL warehouses and tries to start the dbt warehouse, printing only
+# ids, names, states and health messages (never the token). Delete once the warehouse issue is fixed.
+
+on:
+  pull_request:
+    paths: [".github/workflows/diag-warehouse.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      WH: a25edf12d5fff14a
+    steps:
+      - name: Token identity
+        run: |
+          curl -s -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/preview/scim/v2/Me" | jq -c '{userName, active}' 2>/dev/null || true
+      - name: List warehouses
+        run: |
+          curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/sql/warehouses" \
+            | jq '.warehouses[]? | {id, name, state, cluster_size, auto_stop_mins, warehouse_type, enable_serverless_compute, health, odbc_path: .odbc_params.path}'
+          curl -s -o /dev/null -w "list: HTTP %{http_code}\n" -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/sql/warehouses"
+      - name: Get and start the dbt warehouse
+        run: |
+          curl -s -w "\nget: HTTP %{http_code}\n" -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/sql/warehouses/$WH" | jq -c '{id, name, state, health}' 2>/dev/null || true
+          curl -s -w "\nstart: HTTP %{http_code}\n" -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/sql/warehouses/$WH/start"
+          for i in $(seq 1 20); do
+            s=$(curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/sql/warehouses/$WH" | jq -c '{state, health}')
+            echo "$(date -u +%H:%M:%S) $s"
+            echo "$s" | grep -q '"RUNNING"' && break
+            sleep 20
+          done
+      - name: Try one statement
+        run: |
+          curl -s -X POST -H "Authorization: Bearer $DATABRICKS_TOKEN" -H "Content-Type: application/json" \
+            "$DATABRICKS_HOST/api/2.0/sql/statements" \
+            -d "{\"warehouse_id\":\"$WH\",\"statement\":\"SELECT 1\",\"wait_timeout\":\"30s\"}" | jq -c '{status, result: .result.data_array}'
+      - name: Recent warehouse query history (errors)
+        run: |
+          curl -s -H "Authorization: Bearer $DATABRICKS_TOKEN" "$DATABRICKS_HOST/api/2.0/sql/history/queries?max_results=5" \
+            | jq -c '.res[]? | {status, error_message, query_start_time_ms, warehouse_id}' || true
