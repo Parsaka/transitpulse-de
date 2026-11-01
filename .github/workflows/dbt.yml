@@ -72,6 +72,9 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install "dbt-databricks>=1.10,<1.11" "../.[azure]"
+      - name: Workspace gate (fail fast with the real reason instead of a 15 min connect timeout)
+        run: |
+          ../scripts/databricks_gate.sh || { rc=$?; [ $rc = 2 ] && echo "::error::Databricks workspace INACTIVE: sign in on the website (see databricks-watch)"; exit $rc; }
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}

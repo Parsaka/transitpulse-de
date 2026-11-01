@@ -41,8 +41,10 @@ select
     l.service_date,
     coalesce(nullif(l.route_id, ''), t.route_id) as route_id,
     r.agency_name,
-    r.mode,
-    r.mode_order,
+    -- a trip whose route is not in the schedule has no mode; a NULL here collided with the
+    -- '(all modes)' rollup rows of the marts (duplicate keys in mart_feed_daily)
+    coalesce(r.mode, 'other') as mode,
+    coalesce(r.mode_order, 99) as mode_order,
     r.route_short_name,
     r.route_type,
     t.trip_headsign,
