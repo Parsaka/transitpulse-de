@@ -1,0 +1,62 @@
+name: Databricks workspace watch
+
+# Free Edition blocks all compute (denyReason INACTIVE) when nobody has signed in to the workspace
+# website for a while; token/API use from Actions does not count. This check runs twice a day and
+# opens an issue assigned to the owner (GitHub sends the email) so the fix, one browser sign-in,
+# happens the same day. The issue closes itself on the next good check. docs/databricks.md
+
+on:
+  schedule:
+    - cron: "41 5,17 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    if: ${{ vars.DATABRICKS_HOST != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: "Databricks workspace INACTIVE: sign in on the website"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the workspace gate
+        id: gate
+        run: |
+          set +e
+          out=$(scripts/databricks_gate.sh); rc=$?
+          echo "$out"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          { echo "out<<EOF"; echo "$out"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+      - name: Open or update the alert issue
+        if: ${{ steps.gate.outputs.rc == '2' }}
+        run: |
+          gh label create databricks-inactive --color B60205 --description "Opened and closed by databricks-watch" 2>/dev/null || true
+          n=$(gh issue list --label databricks-inactive --state open --json number -q '.[0].number')
+          body="Databricks refuses all compute in the workspace (Free Edition marks it INACTIVE when nobody signs in on the website; API tokens do not count).
+
+          **Fix:** sign in at ${DATABRICKS_HOST} in a browser and open the SQL warehouse page. Nothing else is needed; this issue closes itself on the next good check.
+
+          Last check $(date -u +'%Y-%m-%d %H:%M UTC'): \`${{ steps.gate.outputs.out }}\`
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "Still INACTIVE at $(date -u +'%Y-%m-%d %H:%M UTC')."
+          else
+            gh issue create --title "$TITLE" --label databricks-inactive --assignee "${{ github.repository_owner }}" --body "$body"
+          fi
+      - name: Close the alert issue when the workspace is back
+        if: ${{ steps.gate.outputs.rc == '0' }}
+        run: |
+          for n in $(gh issue list --label databricks-inactive --state open --json number -q '.[].number'); do
+            gh issue close "$n" --comment "Workspace active again at $(date -u +'%Y-%m-%d %H:%M UTC')."
+          done
+      - name: Fail on anything but ok or quota
+        if: ${{ steps.gate.outputs.rc != '0' && steps.gate.outputs.rc != '3' }}
+        run: exit 1

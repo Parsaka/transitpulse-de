@@ -78,3 +78,14 @@ databricks fs cat dbfs:/Volumes/workspace/tp_landing/raw/ops/health.json --profi
   15 minutes for a warehouse that never started). The alert now runs every 2 hours
   (`databricks/alerts/network_anomaly.json`); the auto-stop of the warehouse (10 min) cannot be
   changed on Free Edition ("Editing warehouse is not available to free users").
+- **The workspace goes INACTIVE without browser sign-ins.** On 2026-10-28 22:32 UTC every compute
+  request (warehouse start, serverless jobs) was refused with `DENY_NEW_AND_EXISTING_RESOURCES`,
+  `denyReason: INACTIVE`, while token API calls (Files API, SCIM) still worked. Last good query
+  14:51 UTC that day. A browser sign-in by the owner on 2026-11-01 lifted it at once; the API cannot.
+  Databricks does not document the trigger: the Free Edition acceptable use policy only says an
+  account "may be considered inactive" after 60 days without login, but several other public
+  Free Edition projects hit the same INACTIVE gate in October 2026 after a few days without a
+  sign-in, and all report that token traffic does not count. Countermeasures: sign in on the
+  website at least every few days, and `databricks-watch.yml` checks the gate twice a day and opens
+  an issue assigned to the owner (closed automatically once the warehouse starts again); the dbt
+  job checks the same gate first and fails in seconds instead of a 15 min connect timeout.
