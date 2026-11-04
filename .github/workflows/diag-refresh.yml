@@ -1,0 +1,50 @@
+name: Diagnose refresh job (temporary)
+on:
+  pull_request:
+    paths: [".github/workflows/diag-refresh.yml"]
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      H: ${{ vars.DATABRICKS_HOST }}
+      T: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - name: Last runs and the score task's error
+        run: |
+          api() { curl -s -m 60 -H "Authorization: Bearer $T" "$H/api/2.1/$1"; }
+          api "jobs/runs/list?job_id=837575317072456&limit=25" > runs.json
+          python3 - <<'PY'
+          import json, datetime
+          d = json.load(open("runs.json"))
+          for r in d.get("runs", []):
+              t = datetime.datetime.utcfromtimestamp(r["start_time"]/1000).strftime("%m-%d %H:%M")
+              s = r.get("state", {})
+              print(t, s.get("life_cycle_state"), s.get("result_state"), round(r.get("run_duration", 0)/60000, 1), "min", r["run_id"])
+          PY
+          rid=$(python3 -c "import json;print([r['run_id'] for r in json.load(open('runs.json'))['runs'] if r.get('state',{}).get('result_state')=='FAILED'][0])")
+          api "jobs/runs/get?run_id=$rid" > run.json
+          python3 -c "
+          import json
+          for t in json.load(open('run.json'))['tasks']:
+              print('TASK', t['task_key'], t['state'].get('result_state'), t['state'].get('state_message','')[:300], t['run_id'])
+          "
+          for tid in $(python3 -c "import json;print(' '.join(str(t['run_id']) for t in json.load(open('run.json'))['tasks'] if t['state'].get('result_state')=='FAILED'))"); do
+            echo "=== output of task run $tid"
+            api "jobs/runs/get-output?run_id=$tid" | python3 -c "
+          import json,sys
+          o=json.load(sys.stdin)
+          print('error:', o.get('error','')[:2000])
+          print('trace:', (o.get('error_trace') or '')[-6000:])
+          print('logs:', (o.get('logs') or '')[-3000:])
+          "
+          done
+          # first failing run, to date the regression
+          python3 - <<'PY'
+          import json
+          runs = json.load(open("runs.json"))["runs"]
+          ok = [r for r in runs if r.get("state",{}).get("result_state")=="SUCCESS"]
+          print("last success run:", ok[0]["run_id"] if ok else None)
+          PY
