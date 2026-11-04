@@ -30,6 +30,9 @@ jobs:
   slim-ci:
     if: ${{ github.event_name == 'pull_request' && vars.DATABRICKS_HOST != '' }}
     runs-on: ubuntu-latest
+    # A healthy build takes 1 to 2 minutes. When the warehouse cannot start (Free Edition daily
+    # limit) the SQL connector retries for 15 minutes; cap it so a dead warehouse costs 10 minutes.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: dbt
@@ -58,6 +61,9 @@ jobs:
   prod:
     if: ${{ github.event_name != 'pull_request' && vars.DATABRICKS_HOST != '' }}
     runs-on: ubuntu-latest
+    # A healthy run takes 3 to 4 minutes (2026-10-23/24); between 2026-10-24 and 10-27 runs on an
+    # unavailable warehouse took 15 minutes each and used up the private repository's Actions minutes.
+    timeout-minutes: 12
     environment: databricks
     concurrency:
       group: dbt-prod
