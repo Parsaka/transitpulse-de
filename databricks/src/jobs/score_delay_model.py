@@ -19,55 +19,64 @@ import pandas as pd
 from delay_features import CATEGORICAL, FEATURES, NUMERIC, scoring_sql
 from pyspark.sql import SparkSession
 
-catalog, gold, silver, ops = sys.argv[1:5]
-spark = SparkSession.builder.getOrCreate()
-mlflow.set_registry_uri("databricks-uc")
-MODEL_NAME = f"{catalog}.{ops}.delay_model"
+# A Databricks Python task fails on any SystemExit, even exit code 0 (2026-11-04: every
+# refresh failed on the score task when no trip was active), so leave main() by return.
 
-client = mlflow.MlflowClient()
-try:
-    mv = client.get_model_version_by_alias(MODEL_NAME, "champion")
-except Exception as e:  # no champion yet (first days): nothing to score, not a failure
-    print(json.dumps({"scored": 0, "reason": f"no champion model: {e}"[:200]}))
-    sys.exit(0)
-model = mlflow.lightgbm.load_model(f"models:/{MODEL_NAME}@champion")
 
-df = spark.sql(scoring_sql(catalog, gold, silver)).toPandas()
-if df.empty:
-    print(json.dumps({"scored": 0, "reason": "no active trips"}))
-    sys.exit(0)
-for c in CATEGORICAL:
-    df[c] = df[c].fillna("unknown").astype("category")
-for c in NUMERIC:
-    df[c] = pd.to_numeric(df[c], errors="coerce")
+def main() -> None:
+    """Score the active trips; returns early (never sys.exit) when there is nothing to score."""
+    catalog, gold, silver, ops = sys.argv[1:5]
+    spark = SparkSession.builder.getOrCreate()
+    mlflow.set_registry_uri("databricks-uc")
+    model_name = f"{catalog}.{ops}.delay_model"
 
-now = datetime.now(tz=UTC)
-out = df[
-    [
-        "feed",
-        "trip_id",
-        "start_date",
-        "mode",
-        "first_delay_s",
-        "current_delay_s",
-        "current_stop_sequence",
-        "last_stop_sequence",
-        "n_stops",
-        "last_feed_ts",
-    ]
-].copy()
-out["predicted_last_delay_s"] = model.predict(df[FEATURES]).round(0)
-out["naive_last_delay_s"] = df["current_delay_s"]
-out["model_version"] = int(mv.version)
-out["predicted_at"] = now
-(
-    spark.createDataFrame(out)
-    .write.mode("append")
-    .option("mergeSchema", "true")
-    .saveAsTable(f"{catalog}.{ops}.forecast_log")
-)
-print(
-    json.dumps(
-        {"scored": len(out), "model_version": int(mv.version), "predicted_at": now.isoformat()}
+    client = mlflow.MlflowClient()
+    try:
+        mv = client.get_model_version_by_alias(model_name, "champion")
+    except Exception as e:  # no champion yet (first days): nothing to score, not a failure
+        print(json.dumps({"scored": 0, "reason": f"no champion model: {e}"[:200]}))
+        return
+    model = mlflow.lightgbm.load_model(f"models:/{model_name}@champion")
+
+    df = spark.sql(scoring_sql(catalog, gold, silver)).toPandas()
+    if df.empty:
+        print(json.dumps({"scored": 0, "reason": "no active trips"}))
+        return
+    for c in CATEGORICAL:
+        df[c] = df[c].fillna("unknown").astype("category")
+    for c in NUMERIC:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    now = datetime.now(tz=UTC)
+    out = df[
+        [
+            "feed",
+            "trip_id",
+            "start_date",
+            "mode",
+            "first_delay_s",
+            "current_delay_s",
+            "current_stop_sequence",
+            "last_stop_sequence",
+            "n_stops",
+            "last_feed_ts",
+        ]
+    ].copy()
+    out["predicted_last_delay_s"] = model.predict(df[FEATURES]).round(0)
+    out["naive_last_delay_s"] = df["current_delay_s"]
+    out["model_version"] = int(mv.version)
+    out["predicted_at"] = now
+    (
+        spark.createDataFrame(out)
+        .write.mode("append")
+        .option("mergeSchema", "true")
+        .saveAsTable(f"{catalog}.{ops}.forecast_log")
     )
-)
+    print(
+        json.dumps(
+            {"scored": len(out), "model_version": int(mv.version), "predicted_at": now.isoformat()}
+        )
+    )
+
+
+main()
