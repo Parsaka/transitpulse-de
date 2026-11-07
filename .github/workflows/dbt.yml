@@ -80,9 +80,10 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install "dbt-databricks>=1.10,<1.11" "../.[azure]"
-      # Daily quota spent: nothing can run until the reset at midnight UTC and the next scheduled
-      # build catches up, so skip the build with a warning instead of failing (one failure mail
-      # per afternoon otherwise). INACTIVE and anything else still fail.
+      # Daily quota spent or workspace INACTIVE: nothing can run until the quota resets or the
+      # owner signs in, so skip the build with a warning instead of failing. INACTIVE is reported
+      # once, by the databricks-watch issue; failing here too sent a mail every dbt run
+      # (2026-11-06/07). Anything else still fails.
       - name: Workspace gate (fail fast with the real reason instead of a 15 min connect timeout)
         id: gate
         run: |
@@ -92,7 +93,10 @@ jobs:
             echo "::warning::Databricks Free Edition daily limit reached; build skipped until the quota resets"
             echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          [ $rc = 2 ] && echo "::error::Databricks workspace INACTIVE: sign in on the website (see databricks-watch)"
+          if [ $rc = 2 ]; then
+            echo "::warning::Databricks workspace INACTIVE: build skipped; sign in on the website (see the databricks-inactive issue)"
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           exit $rc
       - if: ${{ steps.gate.outputs.go == 'true' }}
         uses: azure/login@v2

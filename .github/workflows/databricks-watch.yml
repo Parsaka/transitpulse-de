@@ -57,6 +57,8 @@ jobs:
           for n in $(gh issue list --label databricks-inactive --state open --json number -q '.[].number'); do
             gh issue close "$n" --comment "Workspace active again at $(date -u +'%Y-%m-%d %H:%M UTC')."
           done
-      - name: Fail on anything but ok or quota
-        if: ${{ steps.gate.outputs.rc != '0' && steps.gate.outputs.rc != '3' }}
+      # INACTIVE is reported by the issue above (assigned to the owner, so GitHub mails it once);
+      # failing the run as well sent a second "Run failed" mail twice a day.
+      - name: Fail on anything but ok, quota or inactive
+        if: ${{ steps.gate.outputs.rc != '0' && steps.gate.outputs.rc != '3' && steps.gate.outputs.rc != '2' }}
         run: exit 1
