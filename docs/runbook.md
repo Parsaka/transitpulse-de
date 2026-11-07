@@ -41,6 +41,18 @@ AppExceptions | order by TimeGenerated desc | take 1 | project TimeGenerated, In
 | runs succeed but `n_written_stop_times` is 0 for a long time | feed frozen upstream (header timestamp not advancing: `feed_age_s` grows) | nothing to fix locally; note it in the data log |
 | state blob grows past a few MB | gone-trip cleanup not running (feed stopped sending trips) | inspect `state/<feed>.parquet` kinds; delete it to reset (one full snapshot follows) |
 
+## Empty VBB feed: score task failed on SystemExit (incident, 2026-11-04)
+Symptom: from 2026-11-04 06:45 UTC every `transitpulse-refresh-prod` run failed (one mail per
+15 minutes) on task `score` with `SystemExit: 0` and the log line
+`{"scored": 0, "reason": "no active trips"}`; lakeflow, anomaly and health were green.
+Cause: the VBB GTFS-RT feed (production.gtfsrt.vbb.de/data) served an empty 15-byte message
+whose header was 4.5 days old (checked 2026-11-04 08:5x UTC, an upstream outage VBB documents on
+the feed page), so no VBB trip was active. The scorer then left with `sys.exit(0)`, and a
+Databricks Python task treats any SystemExit as a failure. Fix: `score_delay_model.py` and
+`detect_anomalies.py` run in `main()` and leave it with `return`.
+If VBB is empty again: nothing to do on our side; the nationwide gtfs.de feed keeps flowing and
+the VBB marts resume when VBB does. Check the feed page and its news feed for notices.
+
 ## Static schema drift (incident, 2026-10-27)
 Symptom: every `transitpulse-refresh-prod` run timed out after 14 minutes from 2026-10-26 late
 evening on (about 100 failure mails), pipeline updates FAILED on flow `dim_routes` with

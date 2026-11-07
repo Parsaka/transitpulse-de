@@ -59,6 +59,8 @@ jobs:
     if: ${{ github.event_name != 'pull_request' && vars.DATABRICKS_HOST != '' }}
     runs-on: ubuntu-latest
     environment: databricks
+    outputs:
+      built: ${{ steps.gate.outputs.go }}
     concurrency:
       group: dbt-prod
       cancel-in-progress: false
@@ -72,15 +74,28 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install "dbt-databricks>=1.10,<1.11" "../.[azure]"
+      # Daily quota spent: nothing can run until the reset at midnight UTC and the next scheduled
+      # build catches up, so skip the build with a warning instead of failing (one failure mail
+      # per afternoon otherwise). INACTIVE and anything else still fail.
       - name: Workspace gate (fail fast with the real reason instead of a 15 min connect timeout)
+        id: gate
         run: |
-          ../scripts/databricks_gate.sh || { rc=$?; [ $rc = 2 ] && echo "::error::Databricks workspace INACTIVE: sign in on the website (see databricks-watch)"; exit $rc; }
-      - uses: azure/login@v2
+          ../scripts/databricks_gate.sh && { echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          rc=$?
+          if [ $rc = 3 ]; then
+            echo "::warning::Databricks Free Edition daily limit reached; build skipped until the quota resets"
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          [ $rc = 2 ] && echo "::error::Databricks workspace INACTIVE: sign in on the website (see databricks-watch)"
+          exit $rc
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Land collector executions from Log Analytics (lake + Volume)
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        name: Land collector executions from Log Analytics (lake + Volume)
         env:
           TP_LAKE_BACKEND: azure
           TP_ADLS_ACCOUNT_URL: ${{ vars.ADLS_ACCOUNT_URL }}
@@ -89,32 +104,40 @@ jobs:
           TP_LOG_ANALYTICS_WORKSPACE_ID: ${{ vars.LOG_ANALYTICS_WORKSPACE_ID }}
           TP_LOG_FORMAT: json
         run: transitpulse ops-sync --hours 3 | tail -n 1
-      - run: dbt deps
-      - name: Source freshness (warn is fine, error fails the run)
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        run: dbt deps
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        name: Source freshness (warn is fine, error fails the run)
         run: dbt source freshness --target prod
-      - run: dbt build --target prod
-      - run: dbt docs generate --target prod --static
-      - name: Publish the manifest for slim CI
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        run: dbt build --target prod
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        run: dbt docs generate --target prod --static
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        name: Publish the manifest for slim CI
         run: |
           curl -s -o /dev/null -w "manifest upload: HTTP %{http_code}\n" -X PUT -H "Authorization: Bearer $DATABRICKS_TOKEN" \
             -H "Content-Type: application/octet-stream" --data-binary @target/manifest.json "$MANIFEST_URL?overwrite=true"
-      - name: Build the public status site (status.json + status page + dbt docs)
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        name: Build the public status site (status.json + status page + dbt docs)
         run: |
           mkdir -p site/docs
           cp ../site/index.html site/index.html
           cp target/static_index.html site/docs/index.html
           cp target/manifest.json target/catalog.json site/docs/
           python ../scripts/publish_status.py site/status.json
-      - name: Publish to the Azure static website
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        name: Publish to the Azure static website
         run: >
           az storage blob upload-batch --account-name ${{ vars.LAKE_STORAGE_ACCOUNT }} -d '$web' -s site
           --auth-mode login --overwrite -o none
-      - uses: actions/upload-artifact@v4
+      - if: ${{ steps.gate.outputs.go == 'true' }}
+        uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
           path: dbt/site
           retention-days: 14
-      - if: ${{ vars.PAGES_ENABLED == 'true' }}
+      - if: ${{ steps.gate.outputs.go == 'true' && vars.PAGES_ENABLED == 'true' }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: dbt/site
@@ -123,7 +146,7 @@ jobs:
   # variable PAGES_ENABLED=true once the repository is public (docs/dbt.md).
   pages:
     needs: prod
-    if: ${{ github.event_name != 'pull_request' && vars.PAGES_ENABLED == 'true' }}
+    if: ${{ github.event_name != 'pull_request' && vars.PAGES_ENABLED == 'true' && needs.prod.outputs.built == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
