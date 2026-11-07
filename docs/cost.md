@@ -31,6 +31,12 @@ month if every hour ran, so the hourly job alone can exceed the cap). Two ways o
 repository public (minutes become unlimited) or run dbt every two hours. The usage is visible in
 Settings > Billing; measured figures replace this note at the end of the first full month.
 
+**Measured, October 2026: the cap was hit.** From 2026-10-27 every workflow was refused with "The
+job was not started because … your spending limit needs to be increased" (dbt, Static GTFS weekly).
+Cause: while the SQL warehouse was unavailable (Free Edition daily limit, 2026-10-24 to 10-27) each
+dbt run waited 15 minutes on connector retries instead of 3 to 4. Fix: `timeout-minutes` on both
+dbt jobs (12 prod, 10 slim CI). The lasting fix is a public repository (unlimited minutes).
+
 ## Grafana Cloud
 Free tier (10k series, 50 GB logs, 14-day retention); the dashboard reads `status.json` from the
 Azure static website and Azure Monitor through a read-only identity. No cost.
